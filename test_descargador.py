@@ -3,6 +3,7 @@
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import gc
+import io
 import json
 from pathlib import Path
 import shutil
@@ -187,12 +188,13 @@ class DownloadTests(unittest.TestCase):
         cls.thread.join(timeout=5)
         cls.temp.cleanup()
 
-    def worker(self, fmt, urls=None, folder=None, playlist=False, items=""):
+    def worker(self, fmt, urls=None, folder=None, playlist=False, items="", history_path=None):
         destination = self.root / (folder or fmt)
         destination.mkdir(exist_ok=True)
         config = dict(urls=urls or [self.url], destination=str(destination),
                       ffmpeg=app.find_ffmpeg(), playlist=playlist, items=items, cookies="",
-                      format=fmt, quality="192 kbps" if fmt == "MP3" else "720p")
+                      format=fmt, quality="192 kbps" if fmt == "MP3" else "720p",
+                      history_path=str(history_path or self.root / "history.sqlite3"))
         result = subprocess.run([sys.executable, str(app.APP_DIR / "descargador_gui.py"), "--worker"],
                                 input=json.dumps(config) + "\n", capture_output=True,
                                 text=True, encoding="utf-8", timeout=45)
@@ -216,11 +218,32 @@ class DownloadTests(unittest.TestCase):
 
     def test_failed_link_does_not_block_next_link(self):
         invalid = self.url.replace("video.mp4", "no-existe.mp4")
-        result, events, _ = self.worker("MP3", [invalid, self.url], folder="mixed")
+        result, events, destination = self.worker("MP3", [invalid, self.url], folder="mixed")
         self.assertEqual(result.returncode, 1)
         summary = next(event for event in events if event["event"] == "summary")
         self.assertEqual(summary["completed"], 1)
         self.assertGreaterEqual(summary["errors"], 1)
+        self.assertTrue(next(destination.glob("*.mp3")).name.startswith("002 - "))
+
+    def test_multiple_links_keep_queue_order_and_numbered_files_on_retry(self):
+        urls = [self.url.replace("video.mp4", "video2.mp4"), self.url]
+        for fmt in ("MP3", "MP4"):
+            with self.subTest(format=fmt):
+                folder = f"ordered-{fmt}"
+                result, events, destination = self.worker(fmt, urls, folder=folder)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                ready = [Path(event["filename"]).name for event in events if event["event"] == "ready"]
+                self.assertEqual(len(ready), 2)
+                self.assertTrue(ready[0].startswith("001 - video2"), ready)
+                self.assertTrue(ready[1].startswith("002 - video "), ready)
+                before = {file.name: (file.stat().st_mtime_ns, file.read_bytes())
+                          for file in destination.iterdir()}
+                result, events, _ = self.worker(fmt, urls, folder=folder)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual([Path(event["filename"]).name for event in events
+                                  if event["event"] == "ready"], ready)
+                self.assertEqual({file.name: (file.stat().st_mtime_ns, file.read_bytes())
+                                  for file in destination.iterdir()}, before)
 
     def test_playlist_range(self):
         playlist_url = self.url.replace("video.mp4", "playlist.html")
@@ -232,6 +255,29 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(len(files), 1)
         self.assertTrue(files[0].name.startswith("002 - "))
 
+    def test_worker_history_records_final_files_and_preserved_retries(self):
+        from historial import DownloadHistory
+
+        for expected_state in ("downloaded", "existing"):
+            result, events, destination = self.worker("MP3", folder="history-check")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            rows, total = DownloadHistory(self.root / "history.sqlite3").page(str(destination))
+            self.assertEqual(rows[0]["state"], expected_state)
+            self.assertEqual(rows[0]["source_url"], self.url)
+            self.assertEqual(rows[0]["title"], "video")
+            self.assertTrue(Path(rows[0]["filename"]).is_file())
+            self.assertEqual(total, 1 if expected_state == "downloaded" else 2)
+
+    def test_history_failure_does_not_fail_a_completed_download(self):
+        invalid_database = self.root / "invalid.sqlite3"
+        invalid_database.write_bytes(b"No es una base SQLite")
+        result, events, destination = self.worker("MP3", folder="history-error", history_path=invalid_database)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(list(destination.glob("*.mp3"))), 1)
+        self.assertTrue(any(event.get("level") == "warning" and "historial" in event.get("text", "")
+                            for event in events))
+        self.assertEqual(next(event for event in events if event["event"] == "summary")["completed"], 1)
+
     def test_existing_file_is_preserved(self):
         result, _, destination = self.worker("MP3", folder="preserve")
         self.assertEqual(result.returncode, 0)
@@ -241,6 +287,70 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual((final.stat().st_mtime_ns, final.read_bytes()), before)
 
+    def download_music_info(self, folder, **metadata):
+        destination = self.root / folder
+        config = dict(destination=str(destination), ffmpeg=app.find_ffmpeg(),
+                      playlist=False, format="MP3", quality="192 kbps")
+        info = dict(id="music", title="Título del video", url=self.url,
+                    ext="mp4", webpage_url=self.url, extractor="local",
+                    extractor_key="Local", **metadata)
+        with app.create_downloader(app.build_options(config)) as downloader:
+            downloader.process_ie_result(info, download=True)
+        return destination, next(destination.glob("*.mp3"))
+
+    def test_mp3_embeds_music_tags_and_cover_without_sidecar(self):
+        from mutagen.id3 import ID3
+        from PIL import Image
+
+        # WebP es habitual en YouTube; comprobar también JPEG y PNG.
+        for extension in ("jpg", "png", "webp"):
+            with self.subTest(cover=extension):
+                cover = self.root / f"cover.{extension}"
+                with Image.new("RGB", (64, 64), "red") as image:
+                    image.save(cover)
+                destination, final = self.download_music_info(
+                    f"tags-{extension}", track="Canción de prueba 日本語",
+                    artists=["Artista uno", "Artista dos"], album="Álbum de prueba",
+                    album_artist="Artista del álbum", track_number=3, disc_number=2,
+                    genre="Rock", composer="Compositor", upload_date="20251001",
+                    description="Descripción de la canción",
+                    thumbnails=[dict(url=self.url.replace("video.mp4", cover.name))])
+                tags = ID3(final)
+                for key, expected in {
+                    "TIT2": "Canción de prueba 日本語", "TPE1": "Artista uno, Artista dos",
+                    "TALB": "Álbum de prueba", "TPE2": "Artista del álbum",
+                    "TRCK": "3", "TPOS": "2", "TCON": "Rock", "TCOM": "Compositor",
+                    "TDRC": "2025",
+                }.items():
+                    self.assertEqual(str(tags[key]), expected)
+                artwork = tags.getall("APIC")
+                self.assertEqual(len(artwork), 1)
+                self.assertEqual(artwork[0].type, 3)  # Portada frontal ID3.
+                with Image.open(io.BytesIO(artwork[0].data)) as image:
+                    self.assertEqual(image.size, (64, 64))
+                    self.assertIn(image.format, ("JPEG", "PNG"))
+                self.assertEqual(list(destination.iterdir()), [final])
+
+                # Reintentar la misma descarga no debe modificar el MP3 existente.
+                before = (final.stat().st_mtime_ns, final.read_bytes())
+                self.download_music_info(f"tags-{extension}", track="Otro título")
+                self.assertEqual((final.stat().st_mtime_ns, final.read_bytes()), before)
+
+    def test_mp3_with_missing_music_info_or_unavailable_cover(self):
+        from mutagen.id3 import ID3
+
+        for thumbnails in ([], [dict(url=self.url.replace("video.mp4", "missing.jpg"))]):
+            with self.subTest(thumbnails=thumbnails):
+                destination, final = self.download_music_info(
+                    f"missing-cover-{len(thumbnails)}", uploader="Canal de prueba",
+                    thumbnails=thumbnails)
+                tags = ID3(final)
+                self.assertEqual(str(tags["TIT2"]), "Título del video")
+                self.assertEqual(str(tags["TPE1"]), "Canal de prueba")
+                self.assertNotIn("TALB", tags)
+                self.assertEqual(tags.getall("APIC"), [])
+                self.assertEqual(list(destination.iterdir()), [final])
+
     def wait_until(self, window, condition, timeout=20):
         deadline = time.monotonic() + timeout
         while not condition():
@@ -249,7 +359,7 @@ class DownloadTests(unittest.TestCase):
             time.sleep(0.01)
 
     def test_gui_download_and_cancel(self):
-        window = app.launch_gui()
+        window = app.launch_gui(history_path=self.root / "gui-history.sqlite3")
         window.withdraw()
         try:
             window.folder_var.set(str(self.root / "gui"))

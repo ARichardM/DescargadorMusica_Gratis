@@ -1,5 +1,19 @@
 # Historial de versiones
 
+## Sin publicar
+
+- Logo minimalista de música y descarga en la cabecera, la ventana y el acceso directo.
+- Script para crear el acceso directo de Windows con apertura sin consola.
+- Historial persistente de archivos terminados, con búsqueda, paginación y acciones
+  para abrir archivos, carpetas o volver a añadir el enlace a la cola.
+- Escritura del historial desde el trabajador y consultas en segundo plano.
+- Los nuevos MP3 incrustan la portada y los metadatos disponibles en la fuente.
+- El progreso distingue el guardado de metadatos y la incorporación de la portada.
+- Las descargas de varios enlaces llevan números según su orden en la cola,
+  conservando la secuencia importada desde texto o imágenes.
+- Los archivos terminados se conservan sin volver a escribir sus etiquetas.
+- Se fija una versión compatible de Shapely en Windows para la lectura de fotos.
+
 ## v1.0 — 1.0.0 (2026-10-15)
 
 Primera publicación del proyecto Descargador.

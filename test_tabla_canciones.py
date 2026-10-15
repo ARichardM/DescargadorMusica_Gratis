@@ -82,6 +82,37 @@ class TableWorkflowTests(unittest.TestCase):
         self.assertEqual(len(start.call_args.args[0]["queries"]), 133)
         self.assertEqual(len(self.dialog.search_row_ids), 133)
 
+    def test_text_choices_reach_queue_in_source_order(self):
+        self.populate("Zeta - Última letra\nAlfa - Primera letra\nMedio - Otra canción")
+        self.assert_choices_keep_source_order()
+
+    def test_multiple_images_keep_image_and_row_order_in_queue(self):
+        self.dialog.job = canciones.ImportJob()
+        self.dialog.task = "ocr"
+        self.dialog.set_busy(True)
+        for index, lines in enumerate((
+                ["Zeta - Última letra", "Alfa - Primera letra"],
+                ["Medio - Otra canción"]), 1):
+            self.dialog.handle_event(dict(event="ocr_result", lines=lines,
+                name=f"Foto{index}.png", index=index, total=2))
+        self.dialog.handle_event(dict(event="job_done", cancelled=False))
+        self.assertEqual([entry.source for _, entry in self.dialog.songs.entries()],
+                         ["Foto1.png", "Foto1.png", "Foto2.png"])
+        self.assert_choices_keep_source_order()
+
+    def assert_choices_keep_source_order(self):
+        self.dialog.on_add = self.root.add_song_urls
+        with patch.object(self.dialog, "start_job") as start:
+            self.dialog.start_search()
+        self.assertEqual(start.call_args.args[0]["queries"],
+                         ["Zeta - Última letra", "Alfa - Primera letra", "Medio - Otra canción"])
+        # Recibir y elegir resultados en otro orden no cambia el de la lista.
+        for index in (2, 0, 1):
+            self.dialog.add_candidates(self.candidate_event(index))
+        self.dialog.add_selected()
+        self.assertEqual(self.root.urls.get("1.0", "end").strip().splitlines(),
+                         [f"https://www.youtube.com/watch?v=version{index}" for index in range(3)])
+
     def test_duplicate_export_rows_remain_independent_but_search_once(self):
         text = "Hello\nAdele\n21\n4:55\nHello\nAdele\n21\n4:55\nspiral\nLONGMAN\nspiral\n3:52"
         rows = self.populate(text)

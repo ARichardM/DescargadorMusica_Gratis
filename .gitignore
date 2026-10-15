@@ -39,3 +39,7 @@ novela_mushoku/
 .ruff_cache/
 *.log
 informe_canciones*.txt
+
+# Historial privado de descargas y accesos directos de esta instalación.
+datos/
+*.lnk

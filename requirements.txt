@@ -1,5 +1,7 @@
 yt-dlp[default]>=2026.8.19
 Pillow>=10.4,<13
 rapidocr>=3.10,<4
+# Versión de geometría validada con el OCR y el control de aplicaciones de Windows.
+Shapely>=2.1,<2.2; sys_platform == "win32"
 onnxruntime>=1.20,<2
 pywebview>=6.2.1,<7

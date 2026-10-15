@@ -134,8 +134,17 @@ class ScrollableSettings(ttk.Frame):
 
 
 class DownloaderApp(tk.Tk):
-    def __init__(self):
+    def __init__(self, *, history_path=None):
         super().__init__()
+        from historial import DEFAULT_PATH
+
+        self.history_path = Path(history_path) if history_path is not None else DEFAULT_PATH
+        assets = backend.APP_DIR / "assets"
+        self.app_icon = tk.PhotoImage(master=self, file=str(assets / "logo.png"))
+        self.logo_image = tk.PhotoImage(master=self, file=str(assets / "logo-48.png"))
+        self.iconphoto(True, self.app_icon)
+        if os.name == "nt":
+            self.iconbitmap(default=str(assets / "descargador.ico"))
         self.title(f"Descargador v{backend.APP_VERSION} · MP3 y MP4")
         width = min(1080, self.winfo_screenwidth() - 80)
         height = min(800, self.winfo_screenheight() - 90)
@@ -157,6 +166,8 @@ class DownloaderApp(tk.Tk):
         self.manual_mode = False
         self.song_window = None
         self.video_search_window = None
+        self.history_window = None
+        self.history_window_panel = None
         self.video_query_var = tk.StringVar(master=self)
         self.format_var = tk.StringVar(value="MP3")
         self.mode_var = tk.StringVar(value="single")
@@ -217,11 +228,7 @@ class DownloaderApp(tk.Tk):
 
         header = tk.Frame(self, bg=BG)
         header.pack(fill="x", padx=26, pady=(18, 12))
-        mark = tk.Canvas(header, width=38, height=38, bg=BG, highlightthickness=0)
-        mark.pack(side="left", padx=(0, 12))
-        mark.create_oval(0, 0, 37, 37, fill=ACCENT, outline=ACCENT)
-        for x, y in ((11, 15), (16, 10), (21, 14), (26, 18)):
-            mark.create_line(x, y, x, 38 - y, width=3, fill="white", capstyle="round")
+        tk.Label(header, image=self.logo_image, bg=BG, borderwidth=0).pack(side="left", padx=(0, 10))
         title = tk.Frame(header, bg=BG)
         title.pack(side="left")
         tk.Label(title, text="Descargador", font=("Segoe UI", 20, "bold"), bg=BG, fg=INK).pack(anchor="w")
@@ -305,6 +312,12 @@ class DownloaderApp(tk.Tk):
         self.files_tab = ttk.Frame(self.notebook, style="Card.TFrame", padding=(0, 8, 0, 0))
         self.log_tab = ttk.Frame(self.notebook, style="Card.TFrame", padding=(0, 8, 0, 0))
         self.notebook.add(self.files_tab, text="Archivos")
+        from historial_gui import HistoryPanel
+
+        self.history_panel = HistoryPanel(self.notebook, self.history_path,
+                                          self.open_path, self.add_song_urls, lambda: not self.running,
+                                          expand=self.open_download_history)
+        self.notebook.add(self.history_panel, text="Historial")
         self.notebook.add(self.log_tab, text="Registro")
         self.import_tab = ttk.Frame(self.notebook, style="Card.TFrame", padding=(0, 8, 0, 0))
         self.notebook.add(self.import_tab, text="Informe de canciones")
@@ -428,6 +441,21 @@ class DownloaderApp(tk.Tk):
             self.urls.focus_set()
         return "break"
 
+    def open_download_history(self):
+        if self.history_window is not None and self.history_window.winfo_exists():
+            self.history_window.lift()
+            return
+        from historial_gui import HistoryPanel
+
+        self.history_window = tk.Toplevel(self)
+        self.history_window.title("Historial · Descargador")
+        self.history_window.geometry("860x560")
+        self.history_window.minsize(640, 360)
+        self.history_window.configure(bg=SURFACE)
+        self.history_window_panel = HistoryPanel(self.history_window, self.history_path,
+            self.open_path, self.add_song_urls, lambda: not self.running)
+        self.history_window_panel.pack(fill="both", expand=True, padx=16, pady=12)
+
     def open_song_importer(self):
         if self.running:
             return
@@ -473,7 +501,7 @@ class DownloaderApp(tk.Tk):
         self.update_options()
         self.refresh_links()
         self.status_var.set(f"{len(additions)} enlaces nuevos · {len(unique) - len(additions)} ya estaban en cola")
-        self.detail_var.set(f"{len(incoming)} enlaces recibidos · {len(unique)} únicos. Elige MP3 o MP4 y pulsa Descargar.")
+        self.detail_var.set(f"{len(incoming)} enlaces recibidos · {len(unique)} únicos. Se descargan en el orden de la cola. Elige MP3 o MP4 y pulsa Descargar.")
         if len(incoming) != len(additions):
             self.append_log(f"Cola: {len(incoming)} enlaces recibidos → {len(unique)} únicos; {len(additions)} nuevos y {len(unique) - len(additions)} ya presentes.", "warning")
             self.flush_logs()
@@ -528,7 +556,7 @@ class DownloaderApp(tk.Tk):
         else:
             self.range_frame.pack_forget()
         self.items_entry.configure(state="normal" if playlist and not self.running else "disabled")
-        self.quality_hint_var.set("Audio MP3 con la tasa de bits elegida." if audio else "Resolución máxima, según disponibilidad.")
+        self.quality_hint_var.set("Incluye portada y metadatos disponibles." if audio else "Resolución máxima, según disponibilidad.")
         self.refresh_summary()
 
     def refresh_summary(self):
@@ -623,6 +651,9 @@ class DownloaderApp(tk.Tk):
 
     def set_running(self, running):
         self.running = running
+        self.history_panel.update_actions()
+        if self.history_window is not None and self.history_window.winfo_exists():
+            self.history_window_panel.update_actions()
         for widget in self.inputs:
             widget.configure(state="disabled" if running else "normal")
         self.urls.configure(state="disabled" if running else "normal")
@@ -662,7 +693,8 @@ class DownloaderApp(tk.Tk):
             if cookies and not Path(cookies).is_file():
                 raise ValueError("No existe el archivo de cookies seleccionado.")
             config = dict(urls=urls, playlist=playlist, items=items, destination=str(destination),
-                          ffmpeg=ffmpeg, format=self.format_var.get(), quality=self.quality_var.get(), cookies=cookies)
+                          ffmpeg=ffmpeg, format=self.format_var.get(), quality=self.quality_var.get(),
+                          cookies=cookies, history_path=str(self.history_path))
         except (ValueError, OSError) as exc:
             self.set_error(str(exc))
             self.urls.focus_set()
@@ -809,6 +841,9 @@ class DownloaderApp(tk.Tk):
             self.completed = event["completed"]
             self.append_log(f"Listo: {event['filename']}", "ready")
             self.add_file(event["filename"])
+            self.history_panel.schedule_refresh()
+            if self.history_window is not None and self.history_window.winfo_exists():
+                self.history_window_panel.schedule_refresh()
         elif kind == "summary":
             self.completed, self.error_count = event["completed"], event["errors"]
             self.had_summary = True

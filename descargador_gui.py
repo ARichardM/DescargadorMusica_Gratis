@@ -53,10 +53,20 @@ def find_ffmpeg() -> str | None:
     return str(local) if local.is_file() else shutil.which("ffmpeg")
 
 
+def build_output_template(config: dict, queue_position: int = 1) -> str:
+    destination = Path(config["destination"])
+    if config["playlist"]:
+        return str(destination / "%(playlist_title|Sin playlist).100B"
+                   / "%(playlist_index|0)03d - %(title).140B [%(id)s].%(ext)s")
+    prefix = (f"{queue_position:03d} - "
+              if not config["playlist"] and len(config.get("urls", [])) > 1 else "")
+    return str(destination / (prefix + "%(title).150B [%(id)s].%(ext)s"))
+
+
 def build_options(config: dict) -> dict:
     """Opciones compartidas por el proceso de descarga y las pruebas."""
     opts = {
-        "outtmpl": str(Path(config["destination"]) / "%(title).150B [%(id)s].%(ext)s"),
+        "outtmpl": build_output_template(config),
         "ffmpeg_location": config["ffmpeg"],
         "noplaylist": not config["playlist"],
         "ignoreerrors": True,
@@ -73,19 +83,23 @@ def build_options(config: dict) -> dict:
         "js_runtimes": {name: {} for name in ("deno", "node") if shutil.which(name)},
     }
     if config["playlist"]:
-        opts["outtmpl"] = str(
-            Path(config["destination"]) / "%(playlist_title|Sin playlist).100B"
-            / "%(playlist_index|0)03d - %(title).140B [%(id)s].%(ext)s"
-        )
         if config.get("items"):
             opts["playlist_items"] = validate_items(config["items"])
     if config.get("cookies"):
         opts["cookiefile"] = config["cookies"]
     if config["format"] == "MP3":
         opts["format"] = "bestaudio/best"
+        # La imagen se usa como portada incrustada y se elimina al terminar.
+        # No descargar portadas adicionales de la playlist.
+        opts["writethumbnail"] = True
+        opts["outtmpl"] = {"default": opts["outtmpl"], "pl_thumbnail": ""}
         opts["postprocessors"] = [{
             "key": "FFmpegExtractAudio", "preferredcodec": "mp3",
             "preferredquality": config["quality"].split()[0],
+        }, {
+            "key": "FFmpegMetadata", "add_metadata": True,
+        }, {
+            "key": "EmbedThumbnail", "already_have_thumbnail": False,
         }]
     else:
         height = config["quality"].removesuffix("p")
@@ -94,6 +108,29 @@ def build_options(config: dict) -> dict:
         opts["merge_output_format"] = "mp4"
         opts["postprocessors"] = [{"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"}]
     return opts
+
+
+def create_downloader(options: dict, on_existing=None):
+    """Conserva los archivos finales antes de descargar imágenes o retocar etiquetas."""
+    import yt_dlp
+
+    downloader = yt_dlp.YoutubeDL(options)
+
+    def preserve_existing(info, *, incomplete=False):
+        if incomplete or options.get("overwrites") is not False:
+            return None
+        filename = downloader.prepare_filename({**info, "ext": options["final_ext"]})
+        if filename and Path(filename).is_file():
+            if on_existing:
+                on_existing(info)
+            downloader.report_file_already_downloaded(filename)
+            for hook in options.get("post_hooks", []):
+                hook(filename)
+            return "Se conserva el archivo terminado, incluida su portada y sus etiquetas."
+        return None
+
+    downloader.params["match_filter"] = preserve_existing
+    return downloader
 
 
 def run_worker(config: dict) -> int:
@@ -110,6 +147,9 @@ def run_worker(config: dict) -> int:
     completed = 0
     errors = 0
     last_progress = 0.0
+    current_info = {}
+    current_url = ""
+    existing_file = False
 
     class Logger:
         def __init__(self):
@@ -147,20 +187,50 @@ def run_worker(config: dict) -> int:
              index=info.get("playlist_index"), count=info.get("n_entries") or info.get("playlist_count"))
 
     def postprocess(data):
+        nonlocal current_info, existing_file
+        current_info = data.get("info_dict") or {}
+        existing_file = False
         if data["status"] == "started":
-            emit("processing", text="Convirtiendo / uniendo audio y video…")
+            processor = data.get("postprocessor", "")
+            message = {
+                "Metadata": "Guardando título, artista y metadatos disponibles…",
+                "EmbedThumbnail": "Incrustando la portada en la canción…",
+            }.get(processor, "Convirtiendo / uniendo audio y video…")
+            emit("processing", text=message)
+
+    def mark_existing(info):
+        nonlocal current_info, existing_file
+        current_info, existing_file = info, True
 
     def ready(filename):
         nonlocal completed
+        artist = current_info.get("artist") or current_info.get("artists") or ""
+        if isinstance(artist, (list, tuple)):
+            artist = ", ".join(map(str, artist))
+        entry = dict(filename=filename,
+                     title=current_info.get("track") or current_info.get("title") or Path(filename).stem,
+                     artist=artist, source_url=current_info.get("webpage_url") or current_url,
+                     format=Path(filename).suffix.lstrip(".").upper(), quality=config["quality"],
+                     state="existing" if existing_file else "downloaded")
+        if config.get("history_path"):
+            try:
+                from historial import DownloadHistory
+
+                DownloadHistory(config["history_path"]).record(entry)
+            except Exception as exc:
+                emit("log", level="warning", text=f"El archivo está listo, pero no se pudo guardar el historial: {exc}")
         completed += 1
-        emit("ready", filename=filename, completed=completed)
+        emit("ready", filename=filename, completed=completed, history=entry)
 
     try:
         options = build_options(config)
         options.update(logger=Logger(), progress_hooks=[progress],
                        postprocessor_hooks=[postprocess], post_hooks=[ready])
-        with yt_dlp.YoutubeDL(options) as downloader:
+        # Reutilizar la sesión, las cookies y los extractores durante toda la cola.
+        with create_downloader(options, on_existing=mark_existing) as downloader:
             for index, url in enumerate(config["urls"], 1):
+                current_url, current_info, existing_file = url, {}, False
+                downloader.params["outtmpl"]["default"] = build_output_template(config, index)
                 emit("link", index=index, count=len(config["urls"]))
                 downloader.download([url])
     except Exception as exc:
@@ -194,10 +264,14 @@ def human_bytes(value) -> str:
         value /= 1024
 
 
-def launch_gui():
+def launch_gui(*, history_path=None):
     from interfaz import DownloaderApp
 
-    return DownloaderApp()
+    if os.name == "nt":
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Descargador.Desktop")
+    return DownloaderApp(history_path=history_path)
 
 if __name__ == "__main__":
     if "--player-worker" in sys.argv:

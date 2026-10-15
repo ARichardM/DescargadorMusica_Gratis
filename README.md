@@ -22,12 +22,39 @@ del servicio y las restricciones del contenido.
 En Windows, abre **iniciar_descargador.bat** con doble clic. La primera vez prepara
 un entorno `.venv` e instala las dependencias. Requiere Python 3.10 o superior.
 
+Puedes abrir la aplicación desde el acceso directo **Descargador** del escritorio,
+con su nuevo icono de música y descarga. Para crearlo de nuevo después de mover el
+proyecto, ejecuta desde esta carpeta:
+
+```powershell
+.\.venv\Scripts\python.exe crear_acceso_directo.py
+```
+
+También se crea **ABRIR DESCARGADOR** dentro de la carpeta del proyecto, junto al
+archivo `.bat`. Los accesos directos muestran el logo y abren directamente la
+interfaz sin una consola; el `.bat` conserva el icono genérico de Windows. Los recursos del
+logo están en `assets/` (SVG, PNG e ICO); `generar_logo.py` permite regenerarlos.
+
 La interfaz organiza los enlaces y el progreso a la izquierda, y las opciones a la
 derecha. Los botones de descarga y cancelación permanecen visibles si reduces la
 ventana; el panel de opciones permite desplazarse con la rueda del ratón.
 **Opciones avanzadas** muestra el campo de cookies. La pestaña **Archivos** permite
 abrir los resultados con doble clic; **Registro** contiene los detalles técnicos.
 Los errores de entrada se muestran en la propia ventana.
+
+La pestaña **Historial** conserva las nuevas descargas terminadas entre sesiones.
+Muestra fecha, título, artista cuando está disponible, formato y si el archivo se
+guardó o ya existía. Permite buscar por nombre, artista o ruta, abrir el archivo o
+su carpeta y volver a añadir su enlace a la cola. Si mueves o borras un archivo,
+su registro se conserva y se indica que ya no está en esa ubicación al abrirlo.
+Pulsa **Ampliar** para consultar el historial en una ventana más grande.
+Los errores de descarga siguen en **Registro**.
+
+El historial se guarda localmente en `datos/historial.sqlite3`, excluido de Git.
+Cada archivo se registra al terminar, incluso si cancelas después el resto de la
+cola. La lectura se hace en segundo plano y por páginas de 100 registros. Las
+descargas funcionan igualmente si no se puede escribir el historial; el registro
+muestra el aviso.
 
 Atajos: **Ctrl + Enter** para descargar y **Ctrl + L** para ir a los enlaces.
 Al pegar un enlace directo a una playlist de YouTube, el modo de lista se selecciona
@@ -180,6 +207,31 @@ archivos listos y registro de errores. El contador aumenta después de terminar 
 conversión/unión. Una descarga MP4 puede tener una fase de video y otra de audio.
 Las playlists se guardan en subcarpetas con su nombre y llevan número de posición.
 Los nombres incluyen el ID para distinguir videos con títulos iguales.
+
+Las canciones de un texto mantienen el orden de sus filas; las fotos se leen en
+el orden de la lista de imágenes y de arriba abajo dentro de cada imagen. Revisa
+ese orden en la tabla antes de buscar. Las elecciones se añaden a la cola en ese
+orden, aunque elijas o cambies los resultados en otro orden. Si ya había enlaces
+en la cola, los nuevos se añaden al final; los enlaces repetidos se guardan una
+sola vez.
+
+Al descargar varios enlaces individuales, los nombres llevan prefijos `001 -`,
+`002 -`, etc., según su posición en la cola. Así se mantiene el orden al ordenar
+los archivos por nombre, tanto en MP3 como en MP4. Si falla una canción, se conserva
+su hueco en la numeración. Las playlists mantienen su propia numeración.
+
+Los **MP3 incluyen automáticamente los metadatos disponibles**: título de la
+canción, artista, álbum, artista del álbum, número de pista y disco, género,
+compositor, año, descripción y enlace de origen. Se incrusta la imagen disponible
+como portada dentro del MP3, sin dejar una imagen aparte. Si la fuente solo ofrece
+la miniatura del video, esa será la portada; si no ofrece imágenes, se guarda el
+audio igualmente. Las imágenes WebP se convierten automáticamente para incrustarlas.
+
+La información depende de lo que publique la fuente: puede faltar el álbum o el
+artista, y yt-dlp puede usar el nombre del canal cuando no hay un artista musical
+identificado. El año puede corresponder a la publicación del video. No se buscan
+datos adicionales en servicios externos. Esto se aplica a las nuevas descargas MP3;
+los archivos existentes conservan su contenido.
 
 **Cancelar** detiene también FFmpeg. Conserva los archivos terminados y los parciales
 para permitir reintentos cuando sea posible; no garantiza reanudar conversiones
