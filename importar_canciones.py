@@ -18,6 +18,8 @@ from importar_texto import parse_exported_playlist
 from coincidencias import best_candidate
 from filtro_canciones import SongFilter
 from informe_canciones import playlist_url, selection_transfer, transfer_text
+from reproductor_video import PlayerJob
+from audio_resultados import InlineAudio
 
 
 def duration_label(seconds):
@@ -45,6 +47,8 @@ class ImportSongsDialog(tk.Toplevel):
         self.displayed = None
         self.selection_start = self.selection_end = None
         self.job = None
+        self.player_job = None
+        self.player_failed = False
         self.busy = False
         self.closing = False
         self.task = None
@@ -52,6 +56,7 @@ class ImportSongsDialog(tk.Toplevel):
         self.table_timer = None
         self.synced_text = ""
         self.query_sources = {}
+        self.query_uploaders = {}
         self.search_row_ids = []
         self.search_row_groups = []
         self.last_pasted_export = ""
@@ -71,6 +76,7 @@ class ImportSongsDialog(tk.Toplevel):
         self.image_var = tk.StringVar(value="Sin imágenes")
         self.choice_var = tk.StringVar(value="0 canciones elegidas")
         self.playlist_var = tk.StringVar(master=self)
+        self.player_status_var = tk.StringVar(master=self, value="Selecciona un resultado y pulsa Reproducir para escucharlo.")
         self.build_ui()
         self.update_idletasks()
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -221,37 +227,54 @@ class ImportSongsDialog(tk.Toplevel):
                   style="Muted.TLabel").pack(side="bottom", fill="x", before=self.songs, pady=(6, 0))
 
     def build_search_tab(self):
-        ttk.Label(self.search_tab, text="Se marca automáticamente la coincidencia exacta o más parecida. Cambia o quita la elección con doble clic; «Ver resultado» permite revisarla.",
+        ttk.Label(self.search_tab, text="Doble clic para cambiar la elección. Escucha con ▶ y la barra a la derecha de cada resultado; «Reproducir» conserva el reproductor de video.",
                   style="Muted.TLabel", wraplength=880).pack(anchor="w", pady=(0, 12))
         self.results_filter = SongFilter(self.search_tab, self.filter_results)
         self.results_filter.pack(fill="x", pady=(0, 10))
         tree_frame = ttk.Frame(self.search_tab, style="Card.TFrame")
         tree_frame.pack(fill="both", expand=True)
-        self.results = ttk.Treeview(tree_frame, columns=("channel", "duration", "chosen"), selectmode="browse")
+        self.results = ttk.Treeview(tree_frame, columns=("channel", "duration", "chosen", "audio"), selectmode="browse")
         self.results.heading("#0", text="CANCIÓN / RESULTADOS")
         self.results.heading("channel", text="CANAL")
         self.results.heading("duration", text="DURACIÓN")
         self.results.heading("chosen", text="ELECCIÓN")
-        self.results.column("#0", width=450, minwidth=220)
-        self.results.column("channel", width=200, minwidth=100)
-        self.results.column("duration", width=80, minwidth=65, stretch=False, anchor="center")
-        self.results.column("chosen", width=140, minwidth=125, stretch=False, anchor="center")
+        self.results.heading("audio", text="ESCUCHA RÁPIDA · AUDIO")
+        self.results.column("#0", width=340, minwidth=150, stretch=False)
+        self.results.column("channel", width=140, minwidth=70, stretch=False)
+        self.results.column("duration", width=70, minwidth=60, stretch=False, anchor="center")
+        self.results.column("chosen", width=120, minwidth=105, stretch=False, anchor="center")
+        self.results.column("audio", width=250, minwidth=250, stretch=False)
         scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.results.yview)
-        self.results.configure(yscrollcommand=scroll.set)
+        self.inline_audio = InlineAudio(self.results, self.candidates, cookies=self.cookies,
+            before_play=self.stop_preview, status=self.audio_status, changed=self.update_preview_controls)
+
+        def on_scroll(first, last):
+            scroll.set(first, last)
+            self.inline_audio.schedule()
+
+        self.results.configure(yscrollcommand=on_scroll)
         self.results.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
         self.results.tag_configure("chosen", foreground=GREEN)
         self.results.tag_configure("query", foreground=ACCENT)
         self.results.bind("<Double-1>", self.choose_result)
         self.results.bind("<Return>", self.choose_result)
+        self.results.bind("<<TreeviewSelect>>", lambda _: self.update_preview_controls())
         tools = ttk.Frame(self.search_tab, style="Card.TFrame")
-        tools.pack(fill="x", pady=(12, 0))
-        ttk.Button(tools, text="← Revisar tabla", style="Link.TButton", command=lambda: self.tabs.select(self.table_tab)).pack(side="left")
+        tools.pack(side="bottom", fill="x", pady=(8, 0), before=tree_frame)
+        ttk.Button(tools, text="← Tabla", style="Link.TButton", command=lambda: self.tabs.select(self.table_tab)).pack(side="left")
         self.choose_button = ttk.Button(tools, text="Elegir / quitar resultado", command=self.choose_result)
         self.choose_button.pack(side="right")
-        self.view_button = ttk.Button(tools, text="Ver resultado", command=self.view_result)
+        self.view_button = ttk.Button(tools, text="Ver en YouTube", command=self.view_result)
         self.view_button.pack(side="right", padx=8)
         self.controls.extend([self.choose_button, self.view_button])
+        self.play_button = ttk.Button(tools, text="▶ Reproducir", command=self.preview_result, state="disabled")
+        self.play_button.pack(side="left", padx=(8, 4))
+        self.stop_player_button = ttk.Button(tools, text="Detener", command=self.stop_playback, state="disabled")
+        self.stop_player_button.pack(side="left")
+        self.player_status_label = ttk.Label(self.search_tab, textvariable=self.player_status_var,
+            style="Muted.TLabel", wraplength=820, font=("Segoe UI", 9))
+        self.player_status_label.pack(side="bottom", fill="x", pady=(6, 0), before=tools)
 
     def build_report_tab(self):
         ttk.Label(self.report_tab, text="Aquí se muestran todas las canciones pendientes, los motivos y las entradas no disponibles de la playlist comprobada.",
@@ -306,6 +329,11 @@ class ImportSongsDialog(tk.Toplevel):
                     reason = outcome.get("reason") or self.query_errors.get(index) or "YouTube no devolvió alternativas utilizables; revisa el nombre o reintenta."
                 lines.extend([f"{index + 1}. {self.searched_queries[index]}", f"   {'ERROR' if outcome and outcome.get('failed') else 'PENDIENTE'}: {reason}", ""])
             for index, outcome in sorted(self.search_outcomes.items()):
+                attempts = outcome.get("search_attempts", [])
+                if len(attempts) > 1:
+                    lines.extend([f"Consultas de {self.searched_queries[index]}:",
+                                  *[f"  • {attempt['query']} → {attempt['received']} resultados; {attempt['skipped']} descartados."
+                                    for attempt in attempts], ""])
                 if outcome.get("warnings"):
                     lines.extend([f"Advertencias de {self.searched_queries[index]}:", *outcome["warnings"], ""])
         else:
@@ -370,6 +398,7 @@ class ImportSongsDialog(tk.Toplevel):
             # Las consultas están deduplicadas; cada nombre corresponde a un grupo.
             if self.result_groups[parent] == self.searched_queries[index]:
                 for child in self.results.get_children(parent):
+                    self.inline_audio.remove(child)
                     self.candidates.pop(child, None)
                 self.results.delete(parent)
                 del self.result_groups[parent]
@@ -561,7 +590,7 @@ class ImportSongsDialog(tk.Toplevel):
                     self.last_pasted_export = text
                 self.status(self.import_summary)
             else:
-                self.songs.set_queries(clean_queries(text, enforce_limit=False), self.query_sources)
+                self.songs.set_queries(clean_queries(text, enforce_limit=False), self.query_sources, self.query_uploaders)
                 self.import_summary = ""
             self.synced_text = text
         self.names.edit_modified(False)
@@ -604,7 +633,7 @@ class ImportSongsDialog(tk.Toplevel):
         if parse_exported_playlist(text) is not None:
             self.review_table()
             return
-        lines = organize_playlist_text(text)
+        lines = organize_playlist_text(text, uploaders=self.query_uploaders)
         self.clear_results()
         self.names.edit_separator()
         self.names.configure(autoseparators=False)
@@ -677,6 +706,8 @@ class ImportSongsDialog(tk.Toplevel):
         self.start_job(dict(task="search", queries=queries, cookies=self.cookies, playlist_url=source_url))
 
     def clear_results(self):
+        self.inline_audio.stop()
+        self.stop_preview()
         self.results.delete(*self.result_groups)
         self.result_groups.clear()
         self.search_outcomes.clear()
@@ -735,6 +766,7 @@ class ImportSongsDialog(tk.Toplevel):
             else:
                 self.results.selection_remove(parent, *children)
                 self.results.detach(parent)
+        self.inline_audio.schedule()
 
     def choose_result(self, _=None):
         if self.busy:
@@ -779,6 +811,79 @@ class ImportSongsDialog(tk.Toplevel):
         selected = self.results.selection()
         if selected and selected[0] in self.candidates:
             webbrowser.open(self.candidates[selected[0]][1]["url"])
+
+    def update_preview_controls(self):
+        selected = self.results.selection()
+        valid = bool(selected and selected[0] in self.candidates and not self.closing)
+        self.play_button.configure(state="normal" if valid else "disabled")
+        video = self.player_job and not self.player_job.cancelled.is_set()
+        audio = hasattr(self, "inline_audio") and self.inline_audio.job
+        if hasattr(self, "stop_player_button"):
+            self.stop_player_button.configure(state="normal" if video or audio else "disabled")
+
+    def preview_result(self):
+        selected = self.results.selection()
+        if self.closing or not selected or selected[0] not in self.candidates:
+            return
+        self.inline_audio.stop()
+        candidate = self.candidates[selected[0]][1]
+        previous = self.player_job
+        job = self.player_job = PlayerJob()
+        self.player_failed = False
+        self.player_status_var.set("Abriendo: " + candidate["title"])
+        self.player_status_label.configure(foreground=MUTED)
+        self.update_preview_controls()
+
+        def start():
+            if previous:
+                previous.cancel()
+            job.run(dict(url=candidate["url"], title=candidate["title"]))
+
+        threading.Thread(target=start, daemon=True).start()
+
+    def stop_preview(self):
+        job = self.player_job
+        if job:
+            job.cancelled.set()
+            threading.Thread(target=job.cancel, daemon=True).start()
+            self.player_job = None
+            self.player_status_var.set("Reproducción detenida.")
+        if hasattr(self, "play_button"):
+            self.update_preview_controls()
+
+    def audio_status(self, text, error=False):
+        self.player_status_var.set(text)
+        self.player_status_label.configure(foreground=RED if error else MUTED)
+
+    def stop_playback(self):
+        self.inline_audio.stop()
+        self.stop_preview()
+        self.audio_status("Reproducción detenida.")
+
+    def poll_player_events(self):
+        if not self.player_job:
+            return
+        for _ in range(15):
+            try:
+                event = self.player_job.events.get_nowait()
+            except queue.Empty:
+                break
+            if event["event"] == "player":
+                state = event["status"]
+                self.player_failed = state == "error"
+                self.player_status_var.set(event.get("text") or {
+                    "ready": "Reproductor listo. Usa Reproducir y la barra de tiempo en su ventana.",
+                    "playing": "Reproduciendo. Puedes pausar, adelantar y retroceder en el reproductor.",
+                    "paused": "Reproducción en pausa.", "ended": "Reproducción terminada.",
+                    "autoplay_blocked": "Pulsa Reproducir en la ventana del reproductor para empezar.",
+                }.get(state, "Abriendo reproductor…"))
+                self.player_status_label.configure(foreground=RED if self.player_failed else MUTED)
+            elif event["event"] == "player_done":
+                if not self.player_failed:
+                    self.player_status_var.set("Reproductor cerrado.")
+                self.player_job = None
+                self.update_preview_controls()
+                break
 
     def add_selected(self):
         if self.busy or not self.selected_candidates:
@@ -853,6 +958,7 @@ class ImportSongsDialog(tk.Toplevel):
                 self.refresh_attachments(len(self.attachments) - 1)
                 self.update_progress(event["index"], event["total"])
         elif kind == "ocr_result" and not cancelled:
+            self.query_uploaders.update(event.get("uploaders", {}))
             current = self.names.get("1.0", "end").strip()
             # El editor está deshabilitado durante el trabajo; solo el hilo Tk lo actualiza.
             self.names.configure(state="normal")
@@ -932,6 +1038,8 @@ class ImportSongsDialog(tk.Toplevel):
 
     def poll_events(self):
         self.poll_timer = None
+        self.poll_player_events()
+        self.inline_audio.poll()
         if self.job is not None:
             for _ in range(30):
                 try:
@@ -955,6 +1063,8 @@ class ImportSongsDialog(tk.Toplevel):
         self.poll_timer = self.after(60, self.poll_events)
 
     def close(self):
+        self.inline_audio.stop()
+        self.stop_preview()
         if self.busy:
             self.closing = True
             self.cancel_job()
@@ -962,6 +1072,8 @@ class ImportSongsDialog(tk.Toplevel):
             self.destroy()
 
     def destroy(self):
+        self.inline_audio.destroy()
+        self.stop_preview()
         for timer in (self.poll_timer, self.render_timer, self.table_timer):
             if timer is not None:
                 self.after_cancel(timer)

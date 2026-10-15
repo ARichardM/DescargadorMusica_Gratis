@@ -123,9 +123,14 @@ Pulsa **Imágenes y nombres…** en la parte superior de la ventana.
    la lectura sin organizar, para compararla con el texto y la tabla. Repetir el OCR añade texto sin
    duplicados y conserva tus correcciones; retirar una foto no elimina el texto.
 5. La pestaña **Tabla de canciones** se arma automáticamente. Muestra número,
-   artista, título, duración si estaba en el texto, origen y estado. Marca o desmarca las canciones con
+   artista o canal, título, duración si estaba en el texto, origen y estado. Marca o desmarca las canciones con
    las casillas, corrige artista o título con doble clic, añade o elimina filas y
-   ordena pulsando los encabezados. Si falta el artista o el título está cortado,
+   ordena pulsando los encabezados. En videos, **Artista / canal** muestra el canal
+   con la indicación `(canal)` cuando no se conoce el intérprete; ese nombre no se
+   añade como artista a la búsqueda. Los créditos explícitos del título, como
+   `Hitamuki by SUPER BEAVER` o `Bokurano by Eve`, completan el artista y conservan
+   el título original de la versión. El canal también se conserva al leer fotos.
+   Si faltan ambos datos o el título está cortado,
    la fila se destaca para revisión; puedes buscar solo por título si lo prefieres.
    Las correcciones se reflejan también en el texto organizado. Editar la tabla
    invalida las coincidencias anteriores para que no se añada una versión desactualizada.
@@ -136,12 +141,37 @@ Pulsa **Imágenes y nombres…** en la parte superior de la ventana.
    **Desmarcar** también se aplican a la lista completa.
 6. **Buscar canciones marcadas →** consulta YouTube solo por las filas marcadas y muestra hasta
    tres resultados por canción, con título, canal y duración. Esta búsqueda sí
-   necesita Internet. Se marca automáticamente la coincidencia exacta del nombre o,
+   necesita Internet. Si la primera consulta queda vacía, prueba hasta dos variantes
+   del mismo nombre: por ejemplo, `SPYAIR Sakuramitsutsuki` y `SPYAIR サクラミツツキ`
+   para un título bilingüe. Conserva el nombre original, el orden y las elecciones
+   previas. Si los primeros resultados fueron descartados por restricciones o por
+   ser emisiones en directo, amplía el número de resultados una sola vez.
+   **Informe y pendientes** muestra las consultas alternativas y sus resultados.
+   Una búsqueda automática vacía no confirma que la canción no exista en YouTube;
+   la web puede resolver el mismo texto de otra manera. Los fallos de conexión o de
+   la herramienta se registran como errores.
+   Se marca automáticamente la coincidencia exacta del nombre o,
    si no existe, la más parecida, usando también artista y duración cuando están
    disponibles. La columna **Elección** indica **Auto · exacta** o **Auto · similar**;
    es una propuesta, no una garantía de identificar la grabación. Las demás opciones
    siguen visibles. Haz doble clic para cambiar la elección; otro doble clic en el
-   mismo resultado la quita. **Ver resultado** lo abre en el navegador.
+   mismo resultado la quita. A la derecha de cada resultado, **Escucha rápida · Audio**
+   permite escuchar sin abrir video: pulsa **▶** para iniciar, **Ⅱ** para pausar y
+   arrastra la barra para adelantar o retroceder. Muestra el tiempo transcurrido y total.
+   Solo suena una coincidencia a la vez; puedes seguir buscando y filtrando mientras
+   escuchas. Usa FFmpeg y sounddevice, con un búfer pequeño en memoria, sin guardar
+   archivos ni añadir entradas al historial de descargas. La conexión y la disponibilidad
+   de audio en YouTube pueden afectar al inicio de la escucha.
+   El reproductor de video se conserva: selecciona una fila de resultado y pulsa
+   **▶ Reproducir** para escucharla en una ventana del programa, incluso mientras
+   continúa la búsqueda. El reproductor incluye pausa, tiempo transcurrido y total,
+   una barra para adelantar o retroceder y botones **−10 s / +10 s**. La barra aplica
+   el salto al soltarla, sin pedir nuevos fragmentos en cada movimiento.
+   **Detener** cierra la escucha; iniciar otro resultado o pasar entre audio y video
+   detiene primero la reproducción anterior.
+   Escuchar no cambia las canciones elegidas ni las añade a descargas.
+   **Ver en YouTube** abre el navegador como alternativa si el video rechaza la
+   reproducción integrada. Al cerrar el importador también se detiene su reproductor.
    Aquí también puedes filtrar por canción o canal; se mantienen juntas todas las
    alternativas de cada canción y se conservan las elecciones ocultas por el filtro.
 7. **Añadir elegidas a descargas** incorpora solo los enlaces marcados tras tu revisión.

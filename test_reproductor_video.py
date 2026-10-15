@@ -3,6 +3,10 @@
 from contextlib import redirect_stdout
 import io
 import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
 import threading
 from types import SimpleNamespace
 import unittest
@@ -15,6 +19,14 @@ from reproductor_video import video_id, player_error, player_page, make_player_s
 
 
 class PlayerTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "Requiere Node.js para ejecutar los controles JavaScript")
+    def test_timeline_seeking_and_play_pause_with_real_page_script(self):
+        page = player_page('abcdefghijk', 'Título', 'http://127.0.0.1:8888', '/token')
+        script = re.search(r'<script>(.*?)</script>', page, re.DOTALL)[1]
+        result = subprocess.run([shutil.which("node"), str(Path(__file__).parent / "tests" / "player_controls.test.js")],
+                                input=script, text=True, encoding="utf-8", capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_video_urls_are_validated(self):
         for url in ('https://www.youtube.com/watch?v=abcdefghijk', 'https://music.youtube.com/watch?v=abcdefghijk',
                     'https://youtu.be/abcdefghijk'):

@@ -274,7 +274,11 @@ def launch_gui(*, history_path=None):
     return DownloaderApp(history_path=history_path)
 
 if __name__ == "__main__":
-    if "--player-worker" in sys.argv:
+    if "--audio-worker" in sys.argv:
+        from reproductor_audio import run_audio
+
+        sys.exit(run_audio(json.loads(sys.stdin.readline())))
+    elif "--player-worker" in sys.argv:
         from reproductor_video import run_player
 
         sys.exit(run_player(json.loads(sys.stdin.readline())))

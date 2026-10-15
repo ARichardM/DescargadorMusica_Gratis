@@ -59,33 +59,107 @@ def player_page(identifier, title, origin, path, autoplay=True):
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Reproductor integrado</title><style>
-body{margin:0;background:#f3f5fa;color:#1b2540;font:15px 'Segoe UI',sans-serif}
-header,footer{padding:16px 22px}h1{font-size:19px;margin:0 0 5px}p{margin:4px 0}
-#screen{background:#080811;aspect-ratio:16/9;min-height:270px;width:100%}
-#player{width:100%;height:100%;min-height:270px}small{color:#69758c}a{color:#6251e8}
+html,body{height:100%}
+body{margin:0;display:flex;flex-direction:column;background:#f3f5fa;color:#1b2540;font:15px 'Segoe UI',sans-serif}
+header,footer{padding:16px 22px;flex-shrink:0}h1{font-size:19px;margin:0 0 5px}p{margin:4px 0}
+#screen{background:#080811;flex:1;min-height:200px;width:100%}
+#player{width:100%;height:100%;min-height:200px}small{color:#69758c}a{color:#6251e8}
 #status{padding-bottom:8px}.error{color:#bf354f}
+.transport{background:white;border-radius:12px;padding:14px;margin-bottom:12px}
+.timeline{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.timeline span{font-variant-numeric:tabular-nums;white-space:nowrap;color:#69758c}
+input[type=range]{flex:1;min-width:80px;accent-color:#6251e8;cursor:pointer}
+.buttons{display:flex;justify-content:center;gap:10px}
+button{border:0;border-radius:8px;background:#eeebff;color:#5140ce;padding:10px 18px;font:inherit;cursor:pointer}
+button:disabled,input:disabled{opacity:.45;cursor:default}#toggle{background:#6251e8;color:white;min-width:130px}
 </style></head><body><header><h1>""" + safe_title + """</h1>
 <small>Escucha en el programa · No se crea un archivo MP3. Usa Internet y búfer temporal.</small></header>
 <div id="screen"><div id="player"></div></div><footer>
+<div class="transport" aria-label="Controles de reproducción">
+<div class="timeline"><span id="elapsed">0:00</span>
+<input id="seek" type="range" min="0" max="0" step="0.1" value="0" disabled aria-label="Posición de reproducción">
+<span id="duration">--:--</span></div>
+<div class="buttons"><button id="back" disabled aria-label="Retroceder 10 segundos">−10 s</button>
+<button id="toggle" disabled>Reproducir</button>
+<button id="forward" disabled aria-label="Adelantar 10 segundos">+10 s</button></div></div>
 <p id="status" role="status">Cargando el reproductor oficial de YouTube…</p>
 <a href="https://www.youtube.com/watch?v=""" + identifier + """" target="_blank" rel="noopener">Abrir en YouTube si el video no permite reproducción integrada</a>
 </footer><script>
 const config=""" + config + """;
 let responded=false;
+let playerReady=false,dragging=false,progressTimer=null;
+const seek=document.getElementById('seek');
+const toggle=document.getElementById('toggle');
+const back=document.getElementById('back');
+const forward=document.getElementById('forward');
+function timeLabel(value){
+  const seconds=Math.max(0,Math.floor(Number(value)||0));
+  const hours=Math.floor(seconds/3600),minutes=Math.floor(seconds/60)%60,remainder=String(seconds%60).padStart(2,'0');
+  return hours?hours+':'+String(minutes).padStart(2,'0')+':'+remainder:minutes+':'+remainder;
+}
+function updateProgress(){
+  if(!playerReady)return;
+  const player=window.previewPlayer;
+  const duration=Number(player.getDuration());
+  const available=Number.isFinite(duration)&&duration>0;
+  seek.disabled=back.disabled=forward.disabled=!available;
+  toggle.disabled=false;
+  seek.max=available?duration:0;
+  document.getElementById('duration').textContent=available?timeLabel(duration):'--:--';
+  if(!dragging){
+    const current=Number(player.getCurrentTime())||0;
+    seek.value=available?Math.min(duration,Math.max(0,current)):0;
+    document.getElementById('elapsed').textContent=timeLabel(current);
+  }
+  toggle.textContent=player.getPlayerState()===1?'Pausar':'Reproducir';
+}
+function seekToPosition(value){
+  if(!playerReady||seek.disabled)return;
+  const target=Number(value);
+  if(!Number.isFinite(target))return;
+  const position=Math.min(Number(seek.max),Math.max(0,target));
+  window.previewPlayer.seekTo(position,true);
+  seek.value=position;
+  document.getElementById('elapsed').textContent=timeLabel(position);
+}
+seek.addEventListener('input',()=>{
+  dragging=true;
+  document.getElementById('elapsed').textContent=timeLabel(seek.value);
+});
+seek.addEventListener('change',()=>{dragging=false;seekToPosition(seek.value);});
+seek.addEventListener('blur',()=>{dragging=false;updateProgress();});
+back.addEventListener('click',()=>seekToPosition(window.previewPlayer.getCurrentTime()-10));
+forward.addEventListener('click',()=>seekToPosition(window.previewPlayer.getCurrentTime()+10));
+toggle.addEventListener('click',()=>{
+  if(!playerReady)return;
+  const player=window.previewPlayer;
+  if(player.getPlayerState()===1)player.pauseVideo();else player.playVideo();
+  updateProgress();
+});
+window.addEventListener('pagehide',()=>clearInterval(progressTimer));
 function notify(status,code){
   fetch(config.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({status:status,code:code})}).catch(()=>{});
 }
 function message(text,error){const el=document.getElementById('status');el.textContent=text;el.className=error?'error':'';}
-function failure(code){responded=true;message(config.errors[String(code)]||'YouTube rechazó la reproducción. Puedes probar el enlace inferior.',true);notify('error',code);}
+function failure(code){
+  responded=true;playerReady=false;clearInterval(progressTimer);
+  seek.disabled=toggle.disabled=back.disabled=forward.disabled=true;
+  message(config.errors[String(code)]||'YouTube rechazó la reproducción. Puedes probar el enlace inferior.',true);notify('error',code);
+}
 function onYouTubeIframeAPIReady(){
   window.previewPlayer=new YT.Player('player',{videoId:config.video,width:'100%',height:'100%',
     playerVars:{autoplay:config.autoplay?1:0,controls:1,playsinline:1,origin:config.origin,rel:0},
     events:{
-      onReady:function(){responded=true;message('Reproductor listo. Si no comienza, pulsa ▶ dentro del video.',false);notify('ready');},
+      onReady:function(){
+        responded=true;playerReady=true;updateProgress();clearInterval(progressTimer);
+        progressTimer=setInterval(updateProgress,250);
+        message('Reproductor listo. Pulsa Reproducir o usa los controles del video.',false);notify('ready');
+      },
       onError:function(event){failure(event.data);},
       onAutoplayBlocked:function(){responded=true;message('Pulsa ▶ dentro del video para empezar a escuchar.',false);notify('autoplay_blocked');},
       onStateChange:function(event){
+        updateProgress();
         if(event.data===1){message('Reproduciendo · Puedes pausar, ajustar el volumen o adelantar con los controles del video.',false);notify('playing');}
         else if(event.data===2){message('En pausa.',false);notify('paused');}
         else if(event.data===0){message('Reproducción terminada.',false);notify('ended');}
@@ -160,7 +234,7 @@ def run_player(config):
         webview.settings["ALLOW_DOWNLOADS"] = False
         webview.settings["ALLOW_FILE_URLS"] = False
         webview.create_window("Reproductor · " + (config.get("title") or "YouTube"), url=url,
-                              width=900, height=680, min_size=(640, 500), background_color="#f3f5fa")
+                              width=900, height=760, min_size=(640, 580), background_color="#f3f5fa")
         emit(dict(event="player", status="opening", text="Abriendo reproductor integrado…"))
         webview.start(gui="edgechromium" if os.name == "nt" else None, private_mode=True, debug=False)
         return 0

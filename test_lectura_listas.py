@@ -14,6 +14,18 @@ def ocr_result(items):
 
 
 class PlaylistReadingTests(unittest.TestCase):
+    def test_ocr_retains_channel_metadata_in_visual_order(self):
+        titles = ["My Hero Academia Opening | Polaris",
+                  "My Hero Academia Opening | Hitamuki by SUPER BEAVER"]
+        items = []
+        for index, title in enumerate(titles):
+            y = 15 + index * 70
+            items.extend([(title, 68, y, 600, 14), ("Crunchyroll", 68, y + 25, 160, 14),
+                          ("1:40", 782, y + 9, 30, 13)])
+        uploaders = {}
+        self.assertEqual(text_from_ocr(ocr_result(items), (832, 200), uploaders=uploaders), titles)
+        self.assertEqual(uploaders, {title.casefold(): "Crunchyroll" for title in titles})
+
     def test_user_pasted_output_is_grouped_and_times_removed(self):
         text = """消えない理由- Kienai Riyuu
 4:10

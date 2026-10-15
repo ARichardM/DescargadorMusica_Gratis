@@ -3,13 +3,7 @@
 from dataclasses import dataclass, field
 import re
 
-from lectura_listas import DURATION, VIDEO_TITLE
-
-
-VIDEO_METADATA = re.compile(
-    r"\b(?:OP|ED|OST|AMV|MAD|MV|HD|FPS|4K)\b|music video|ノンクレジット|ノン.?クレジット|remake|extended theme",
-    re.IGNORECASE,
-)
+from lectura_listas import DURATION, VIDEO_TITLE, VIDEO_METADATA, video_artist, song_query
 
 
 @dataclass
@@ -23,7 +17,7 @@ class ImportedSong:
 
     @property
     def query(self):
-        return f"{self.artist} - {self.title}" if self.artist else self.title
+        return song_query(self.title, self.artist)
 
 
 @dataclass
@@ -77,7 +71,7 @@ def parse_exported_playlist(text):
         title, performer = body[:2]
         album = body[2] if len(body) == 3 else ""
         is_video = not album and bool(VIDEO_TITLE.search(title) or VIDEO_METADATA.search(title))
-        return ImportedSong(title=title, artist="" if is_video else performer,
+        return ImportedSong(title=title, artist=video_artist(title) if is_video else performer,
                             album=album, duration=duration, uploader=performer if is_video else "")
 
     def keep_extra(lines):

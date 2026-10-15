@@ -168,6 +168,21 @@ class ReportDialogTests(unittest.TestCase):
         self.assertEqual(len(self.dialog.result_groups), 3)
         self.assertIn("0 pendientes", self.dialog.status_var.get())
 
+    def test_report_records_alternative_queries_without_changing_the_original(self):
+        self.start(1)
+        original = self.dialog.searched_queries[0]
+        self.dialog.handle_event(dict(event="search_result", index=0, query=original, total=1,
+            candidates=[dict(title="Versión encontrada", channel="Artista", duration=200, url="found")],
+            search_attempts=[dict(query=original, limit=3, received=0, skipped=0),
+                             dict(query="Artista Canción 0", limit=3, received=3, skipped=0)],
+            matched_query="Artista Canción 0"))
+        self.done()
+        report = self.dialog.report_text.get("1.0", "end")
+        self.assertIn(original + " → 0 resultados", report)
+        self.assertIn("Artista Canción 0 → 3 resultados", report)
+        self.assertEqual(self.dialog.searched_queries, [original])
+        self.assertEqual(len(self.dialog.selected_candidates), 1)
+
     def test_cancelled_and_missing_results_have_names_and_can_retry(self):
         self.start()
         self.result(0)

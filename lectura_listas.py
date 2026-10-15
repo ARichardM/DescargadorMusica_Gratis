@@ -9,6 +9,33 @@ import unicodedata
 DURATION = re.compile(r"^(?:\d{1,2}:)?\d{1,3}:[0-5]\d$")
 SEPARATOR = re.compile(r"\s*[·•●]\s*")
 VIDEO_TITLE = re.compile(r"opening|ending|creditless|\bPV\b|TV\s*アニメ", re.IGNORECASE)
+VIDEO_METADATA = re.compile(
+    r"\b(?:OP|ED|OST|AMV|MAD|MV|HD|FPS|4K)\b|music video|ノンクレジット|ノン.?クレジット|remake|extended theme",
+    re.IGNORECASE,
+)
+
+
+def video_artist(title):
+    """Extrae créditos explícitos; conserva el título completo para buscar su versión."""
+    if not (VIDEO_TITLE.search(title) or VIDEO_METADATA.search(title) or "|" in title):
+        return ""
+    credit = re.search(r"\bby\s+([^|]+)", title, re.IGNORECASE)
+    if credit:
+        artist = credit[1].strip(" \t\"“”「」")
+        artist = re.sub(r"\s*[\[(](?:official\b|lyrics?\b|HD\b|4K\b).*", "", artist,
+                        flags=re.IGNORECASE).strip()
+        # «Stand by Me» y «By Your Side» son títulos, no créditos.
+        if (artist and artist.casefold() not in {"me", "you", "us", "my side", "your side", "myself"}
+                and not artist.endswith(("…", "..."))):
+            return artist
+    dated = re.search(r"\s-\s([^|]+?)\s*\((?:19|20)\d{2}\)(?:\s|$)", title)
+    return dated[1].strip() if dated else ""
+
+
+def song_query(title, artist=""):
+    if artist and not re.search(r"(?<!\w)" + re.escape(artist) + r"(?!\w)", title, re.IGNORECASE):
+        return f"{artist} - {title}"
+    return title
 
 
 def tidy_ocr_line(text):
@@ -53,7 +80,7 @@ def unique_lines(lines):
     return result
 
 
-def organize_playlist_text(text):
+def organize_playlist_text(text, *, uploaders=None):
     """Limpieza explícita del texto pegado: tiempos, título/subtítulo y canales de openings."""
     lines = [cleaned for line in text.splitlines() if (cleaned := tidy_ocr_line(line))]
     result = []
@@ -69,6 +96,8 @@ def organize_playlist_text(text):
             if (VIDEO_TITLE.search(title) and not VIDEO_TITLE.search(subtitle)
                     and " - " not in subtitle and len(subtitle) <= 50):
                 # Un canal de subida no es necesariamente el intérprete de la canción.
+                if uploaders is not None:
+                    uploaders[title.casefold()] = subtitle
                 result.append(title)
                 index += 2
                 continue
@@ -169,11 +198,11 @@ def rows_from_ocr(result, image_size=None):
     return rows, has_clocks
 
 
-def playlist_lines_from_ocr(result, image_size=None):
+def playlist_lines_from_ocr(result, image_size=None, *, uploaders=None):
     rows, has_clocks = rows_from_ocr(result, image_size)
     if not rows:
         texts = getattr(result, "txts", None)
-        return organize_playlist_text("\n".join(texts or []))
+        return organize_playlist_text("\n".join(texts or []), uploaders=uploaders)
     gaps = [second.middle - first.middle for first, second in zip(rows, rows[1:])]
     height = median(row.height for row in rows)
     short_gaps = [gap for gap in gaps if height * 0.8 < gap <= height * 2.3]
@@ -192,7 +221,9 @@ def playlist_lines_from_ocr(result, image_size=None):
                 index += 2
                 continue
             if close and aligned and (has_clocks or repeating_pairs) and not VIDEO_TITLE.search(subtitle.text):
-                # Solo en un patrón repetido de título/subtítulo: descarta el canal.
+                # El canal se conserva aparte del intérprete para mostrarlo en la tabla.
+                if uploaders is not None:
+                    uploaders[title.text.casefold()] = subtitle.text
                 result_lines.append(title.text)
                 index += 2
                 continue

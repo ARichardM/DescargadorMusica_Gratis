@@ -59,6 +59,35 @@ class ExportedPlaylistTests(unittest.TestCase):
         self.assertEqual(parsed.songs[0].uploader, "vizmedia")
         self.assertEqual(parsed.songs[1].artist, "Little Glee Monster")
 
+    def test_explicit_video_credits_keep_artist_channel_title_and_duration(self):
+        cases = [
+            ("My Hero Academia Season 6 Opening 1 | Hitamuki by SUPER BEAVER", "Crunchyroll", "SUPER BEAVER"),
+            ("My Hero Academia Season 6 Opening 2 | Bokurano by Eve", "Crunchyroll", "Eve"),
+            ("My Hero Academia Ending 1 | Heroes by Brian the Sun", "Crunchyroll", "Brian the Sun"),
+            ("My Hero Academia Season 5 Opening 1 | No.1 by DISH//", "Crunchyroll", "DISH//"),
+            ("Midnight Blues - Ichiro Araki (1981) Ashita no Joe Opening 2", "HeyGen", "Ichiro Araki"),
+            ("Dragon Ball Super Opening Full |「Chozetsu Dynamic」By Kazuya Yoshii", "KiriLody", "Kazuya Yoshii"),
+            ('Cyberpunk | “I Really Want to Stay At Your House” by Rosa Walton | Music Video', "Netflix", "Rosa Walton"),
+        ]
+        for title, channel, artist in cases:
+            with self.subTest(title=title):
+                parsed = parse_exported_playlist(f"{title}\n{channel}\n1:45")
+                self.assertEqual(len(parsed.songs), 1)
+                song = parsed.songs[0]
+                self.assertEqual((song.artist, song.uploader, song.title, song.duration),
+                                 (artist, channel, title, "1:45"))
+                self.assertEqual(song.query, title)  # Mantener la versión y no repetir el artista.
+
+    def test_ambiguous_or_truncated_titles_preserve_channel_without_inventing_artist(self):
+        for title in ("My Hero Academia Season 4 Opening 1 | Polaris",
+                      "My Hero Academia Ending | Stand by Me",
+                      "My Hero Academia Ending | Shout Baby by Ryokusho..."):
+            with self.subTest(title=title):
+                song = parse_exported_playlist(f"{title}\nCrunchyroll\n1:40").songs[0]
+                self.assertEqual(song.artist, "")
+                self.assertEqual(song.uploader, "Crunchyroll")
+                self.assertEqual(song.query, title)
+
     def test_line_endings_bom_and_blank_lines_between_fields(self):
         text = "\ufeffGunjo Sanka\r\n\r\nEve\r\n\r\nKaizin\r\n\r\n4:37"
         parsed = parse_exported_playlist(text)

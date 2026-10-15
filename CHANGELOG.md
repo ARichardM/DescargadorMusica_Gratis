@@ -2,6 +2,18 @@
 
 ## Sin publicar
 
+- Escucha rápida de solo audio a la derecha de cada coincidencia, con play/pausa,
+  barra para buscar un instante y tiempos; se conserva el reproductor de video.
+- Audio en un trabajador independiente con búfer acotado en memoria y controles
+  limitados a las filas visibles para mantener fluida la lista.
+- Las consultas vacías prueban variantes de nombres bilingües y títulos con símbolos,
+  con intentos limitados y un informe de las búsquedas realizadas.
+- Se amplía una vez la búsqueda si todos los primeros resultados fueron descartados,
+  y los errores del buscador se distinguen de las consultas sin alternativas.
+- Reproducción de coincidencias durante la búsqueda, con pausa, barra de tiempo y
+  saltos de diez segundos; cambiar de resultado o cerrar el importador detiene la escucha.
+- La tabla muestra el canal de los videos y reconoce artistas acreditados en el título,
+  conservando el título completo, el orden y los datos del texto y del OCR.
 - Logo minimalista de música y descarga en la cabecera, la ventana y el acceso directo.
 - Script para crear el acceso directo de Windows con apertura sin consola.
 - Historial persistente de archivos terminados, con búsqueda, paginación y acciones

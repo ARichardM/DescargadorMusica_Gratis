@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from interfaz import GREEN, MUTED, RED
-from lectura_listas import VIDEO_TITLE
+from lectura_listas import VIDEO_TITLE, video_artist, song_query
 from filtro_canciones import SongFilter
 
 
@@ -23,6 +23,11 @@ class SongEntry:
 
     @classmethod
     def from_query(cls, query, source="Texto"):
+        credited_artist = video_artist(query)
+        if credited_artist:
+            entry = cls(credited_artist, query, source)
+            entry.reset_state()
+            return entry
         artist, separator, title = query.partition(" - ")
         if not separator or VIDEO_TITLE.search(artist):
             artist, title = "", query
@@ -34,10 +39,16 @@ class SongEntry:
     def query(self):
         if not self.title:
             return ""
-        return f"{self.artist} - {self.title}" if self.artist else self.title
+        return song_query(self.title, self.artist)
+
+    @property
+    def display_artist(self):
+        return self.artist or (f"{self.uploader} (canal)" if self.uploader else "")
 
     def reset_state(self):
         self.state = "Falta título" if not self.title else "Revisar artista" if not self.artist else "Pendiente"
+        if self.title and not self.artist and self.uploader:
+            self.state = "Canal disponible"
         if self.title.endswith(("…", "...")):
             self.state = "Revisar título"
 
@@ -63,6 +74,8 @@ class SongTable(ttk.Frame):
             self.controls.append(button)
         ttk.Label(self, text="Marca las canciones que quieres buscar. Doble clic en artista o título para corregirlos.",
                   style="Muted.TLabel", font=("Segoe UI", 9), wraplength=820).pack(anchor="w", pady=(0, 10))
+        ttk.Label(self, text="En videos se muestra el canal si el intérprete no está indicado. El canal no se usa como artista al buscar.",
+                  style="Muted.TLabel", font=("Segoe UI", 9), wraplength=820).pack(anchor="w", pady=(0, 8))
         self.filter = SongFilter(self, self.filter_rows)
         self.filter.pack(fill="x", pady=(0, 10))
         frame = ttk.Frame(self, style="Card.TFrame")
@@ -73,7 +86,7 @@ class SongTable(ttk.Frame):
                                  show="tree headings", selectmode="extended")
         self.tree.heading("#0", text="✓", command=self.toggle_all)
         self.tree.column("#0", width=38, minwidth=38, stretch=False, anchor="center")
-        for name, title, width, minimum in (("number", "#", 38, 32), ("artist", "ARTISTA", 170, 110),
+        for name, title, width, minimum in (("number", "#", 38, 32), ("artist", "ARTISTA / CANAL", 190, 130),
                                             ("title", "CANCIÓN / TÍTULO", 330, 200),
                                             ("duration", "DURACIÓN", 80, 70),
                                             ("source", "ORIGEN", 140, 90), ("state", "ESTADO", 135, 110)):
@@ -111,15 +124,18 @@ class SongTable(ttk.Frame):
                 self.tree.detach(item)
         self.refresh_count()
 
-    def set_queries(self, queries, sources=None):
+    def set_queries(self, queries, sources=None, uploaders=None):
         previous = defaultdict(deque)
         for _, entry in self.entries():
             previous[entry.query.casefold()].append(entry)
         sources = sources or {}
+        uploaders = uploaders or {}
         entries = []
         for query in queries:
             matches = previous[query.casefold()]
             entries.append(matches.popleft() if matches else SongEntry.from_query(query, sources.get(query.casefold(), "Texto")))
+            if not entries[-1].uploader:
+                entries[-1].uploader = uploaders.get(query.casefold(), "")
         self.set_entries(entries)
 
     def set_imported(self, records):
@@ -167,7 +183,7 @@ class SongTable(ttk.Frame):
         for number, (item, entry) in enumerate(self.entries(), 1):
             tag = "chosen" if entry.state == "Elegida" else "error" if entry.state in ("Error", "Sin resultados") else "review" if entry.state.startswith(("Revisar", "Falta")) else ""
             self.tree.item(item, text="☑" if entry.checked else "☐",
-                           values=(number, entry.artist, entry.title, entry.duration, entry.source, entry.state), tags=(tag,) if tag else ())
+                           values=(number, entry.display_artist, entry.title, entry.duration, entry.source, entry.state), tags=(tag,) if tag else ())
         self.filter_rows()
 
     def refresh_count(self):
@@ -239,7 +255,7 @@ class SongTable(ttk.Frame):
             return
         reverse = self.sort_reverse.get(column, False)
         def sort_key(pair):
-            value = getattr(pair[1], column)
+            value = pair[1].display_artist if column == "artist" else getattr(pair[1], column)
             if column == "duration":
                 return sum(int(part) * 60 ** index for index, part in enumerate(reversed(value.split(":")))) if value else 0
             return value.casefold()
@@ -256,7 +272,7 @@ class SongTable(ttk.Frame):
         artist, title = (value, entry.title) if field == "artist" else (entry.artist, value)
         if field == "title" and not title:
             raise ValueError("El título no puede quedar vacío. Puedes quitar o desmarcar esa fila.")
-        query = f"{artist} - {title}" if artist and title else title
+        query = song_query(title, artist) if title else ""
         if query and any(other != item and row.query.casefold() == query.casefold() for other, row in self.entries()):
             raise ValueError("Esa canción ya está en otra fila.")
         entry.artist, entry.title = artist, title

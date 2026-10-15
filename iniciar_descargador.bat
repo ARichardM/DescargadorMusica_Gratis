@@ -5,7 +5,7 @@ if not exist ".venv\Scripts\python.exe" (
     python -m venv .venv
     if errorlevel 1 goto :error
 )
-".venv\Scripts\python.exe" -c "import yt_dlp, yt_dlp_ejs, PIL, rapidocr, onnxruntime, webview" >nul 2>&1
+".venv\Scripts\python.exe" -c "import yt_dlp, yt_dlp_ejs, PIL, rapidocr, onnxruntime, webview, sounddevice" >nul 2>&1
 if errorlevel 1 (
     echo Instalando las dependencias de descarga...
     ".venv\Scripts\python.exe" -m pip install -r requirements.txt

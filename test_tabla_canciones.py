@@ -86,6 +86,44 @@ class TableWorkflowTests(unittest.TestCase):
         self.populate("Zeta - Última letra\nAlfa - Primera letra\nMedio - Otra canción")
         self.assert_choices_keep_source_order()
 
+    def test_pasted_video_rows_show_channel_and_recover_credits_without_changing_search(self):
+        titles = ["My Hero Academia Season 4 Opening 1 | Polaris",
+                  "My Hero Academia Season 6 Opening 1 | Hitamuki by SUPER BEAVER",
+                  "My Hero Academia Season 6 Opening 2 | Bokurano by Eve"]
+        rows = self.populate("\n".join(f"{title}\nCrunchyroll\n1:40" for title in titles))
+        table = self.dialog.songs
+        self.assertEqual(table.tree.heading("artist", "text"), "ARTISTA / CANAL")
+        self.assertEqual([table.tree.set(item, "artist") for item, _ in rows],
+                         ["Crunchyroll (canal)", "SUPER BEAVER", "Eve"])
+        self.assertEqual(rows[0][1].state, "Canal disponible")
+        self.assertEqual([entry.uploader for _, entry in rows], ["Crunchyroll"] * 3)
+        self.assertEqual([entry.duration for _, entry in rows], ["1:40"] * 3)
+        with patch.object(self.dialog, "start_job") as start:
+            self.dialog.start_search()
+        self.assertEqual(start.call_args.args[0]["queries"], titles)
+        self.dialog.add_candidates(self.candidate_event(1, [
+            dict(title="Hitamuki (full)", channel="SUPER BEAVER", duration=240, url="full"),
+            dict(title=titles[1], channel="Crunchyroll", duration=100, url="original")]))
+        chosen = self.dialog.selected_candidates[1]
+        self.assertEqual(self.dialog.candidates[chosen][1]["url"], "original")
+
+    def test_ocr_keeps_channels_in_table_without_using_them_as_performers(self):
+        title = "My Hero Academia Season 4 Opening 1 | Polaris"
+        self.dialog.task = "ocr"
+        self.dialog.job = canciones.ImportJob()
+        self.dialog.set_busy(True)
+        self.dialog.handle_event(dict(event="ocr_result", lines=[title],
+            uploaders={title.casefold(): "Crunchyroll"}, name="Foto.png", index=1, total=1))
+        self.dialog.handle_event(dict(event="job_done", cancelled=False))
+        item, entry = self.dialog.songs.entries()[0]
+        self.assertEqual(entry.artist, "")
+        self.assertEqual(entry.uploader, "Crunchyroll")
+        self.assertEqual(self.dialog.songs.tree.set(item, "artist"), "Crunchyroll (canal)")
+        self.assertEqual(entry.query, title)
+        self.dialog.songs.filter.value.set("Crunchyroll")
+        self.root.update()
+        self.assertEqual(self.dialog.songs.tree.get_children(), (item,))
+
     def test_multiple_images_keep_image_and_row_order_in_queue(self):
         self.dialog.job = canciones.ImportJob()
         self.dialog.task = "ocr"

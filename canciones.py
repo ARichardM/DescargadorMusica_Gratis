@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import unicodedata
 
 from PIL import Image, ImageGrab, ImageOps
 
@@ -98,8 +99,8 @@ def clean_queries(text, *, enforce_limit=True):
     return queries
 
 
-def text_from_ocr(result, image_size=None):
-    return playlist_lines_from_ocr(result, image_size)
+def text_from_ocr(result, image_size=None, *, uploaders=None):
+    return playlist_lines_from_ocr(result, image_size, uploaders=uploaders)
 
 
 def make_ocr_engine():
@@ -112,16 +113,40 @@ def make_ocr_engine():
     })
 
 
-def search_candidates(query_text, downloader, diagnostics=None, *, limit=3, include_thumbnail=False):
-    if not isinstance(limit, int) or not 1 <= limit <= 20:
-        raise ValueError("La búsqueda admite entre 1 y 20 resultados.")
-    info = downloader.extract_info(f"ytsearch{limit}:{query_text}", download=False)
-    if not isinstance(info, dict):
-        raise ValueError("YouTube no devolvió datos de búsqueda; la consulta no se pudo verificar.")
+def search_query_variants(query_text):
+    """Hasta tres consultas del mismo nombre; conservar siempre el original primero."""
+    original = " ".join(query_text.split())
+    normalized = unicodedata.normalize("NFKC", original)
+
+    def words(value):
+        return " ".join(re.sub(r"[^\w\s]", " ", value).replace("_", " ").split())
+
+    parts = [part.strip() for part in re.split(r"\s+[-–—]\s*", normalized) if part.strip()]
+    alternatives = []
+    if len(parts) >= 3:
+        # «SPYAIR - サクラミツツキ - Sakuramitsutsuki»: probar ambos nombres con el artista.
+        alternatives.extend((words(parts[0] + " " + parts[-1]),
+                             words(parts[0] + " " + " ".join(parts[1:-1]))))
+    else:
+        segments = re.split(r"[|｜ㅣ]", normalized)
+        if len(segments) > 1:
+            main_title = words(" ".join(segments[1:]))
+            if len(main_title) >= 6:
+                alternatives.append(main_title)
+        alternatives.append(words(normalized))
+    variants, seen = [original], {original.casefold()}
+    for alternative in alternatives:
+        if alternative and alternative.casefold() not in seen:
+            variants.append(alternative)
+            seen.add(alternative.casefold())
+    return variants[:3]
+
+
+def usable_search_results(entries, *, include_thumbnail=False):
     candidates = []
     skipped = 0
-    for item in (info or {}).get("entries") or []:
-        if not item or item.get("is_live") or item.get("live_status") in ("is_live", "is_upcoming"):
+    for item in entries:
+        if not isinstance(item, dict) or item.get("is_live") or item.get("live_status") in ("is_live", "is_upcoming"):
             skipped += 1
             continue
         video_id = item.get("id")
@@ -136,11 +161,44 @@ def search_candidates(query_text, downloader, diagnostics=None, *, limit=3, incl
         if include_thumbnail:
             candidates[-1]["thumbnail"] = (f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
                                            if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", video_id) else "")
+    return candidates, skipped
+
+
+def search_candidates(query_text, downloader, diagnostics=None, *, limit=3, include_thumbnail=False):
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("La búsqueda admite entre 1 y 20 resultados.")
+    attempts = []
+    widened = False
+    for query in search_query_variants(query_text):
+        result_limit = limit
+        while True:
+            info = downloader.extract_info(f"ytsearch{result_limit}:{query}", download=False)
+            if not isinstance(info, dict):
+                raise ValueError("YouTube no devolvió datos de búsqueda; la consulta no se pudo verificar.")
+            entries = list(info.get("entries") or [])
+            candidates, skipped = usable_search_results(entries, include_thumbnail=include_thumbnail)
+            attempts.append(dict(query=query, limit=result_limit, received=len(entries), skipped=skipped))
+            if diagnostics is not None:
+                diagnostics.update(search_attempts=list(attempts), matched_query=query if candidates else "")
+            if candidates:
+                if diagnostics is not None:
+                    diagnostics["reason"] = ""
+                return candidates[:limit]
+            # Si los primeros resultados eran directos o entradas inaccesibles, mirar más
+            # resultados una sola vez antes de declarar la consulta vacía.
+            if skipped and not widened and result_limit < 20:
+                result_limit = min(20, max(10, limit * 2))
+                widened = True
+                continue
+            break
     if diagnostics is not None:
-        diagnostics["reason"] = ("" if candidates else
-            f"Se descartaron {skipped} resultados no disponibles, sin datos válidos o emisiones en directo/próximas." if skipped else
-            "YouTube no devolvió resultados para este nombre. Revisa el título o reintenta; no significa que la canción no exista.")
-    return candidates
+        skipped = max((attempt["skipped"] for attempt in attempts), default=0)
+        diagnostics["reason"] = (
+            f"La búsqueda automática no devolvió resultados utilizables tras {len(attempts)} consultas. "
+            "Esto no confirma que la canción no exista en YouTube."
+            + (f" Se descartaron hasta {skipped} resultados por consulta por falta de datos, acceso restringido o emisiones en directo/próximas."
+               if skipped else ""))
+    return []
 
 
 def run_import_worker(config):
@@ -167,10 +225,12 @@ def run_import_worker(config):
                                 working.close()
                                 working = cropped
                                 result = engine(working)
-                            lines = text_from_ocr(result, working.size)
+                            uploaders = {}
+                            lines = text_from_ocr(result, working.size, uploaders=uploaders)
                         finally:
                             working.close()
-                    emit("ocr_result", lines=lines, raw_text=raw_text, name=source["name"], index=index, total=len(sources))
+                    emit("ocr_result", lines=lines, uploaders=uploaders, raw_text=raw_text,
+                         name=source["name"], index=index, total=len(sources))
                 except Exception as exc:
                     errors += 1
                     emit("import_error", text=f"{source['name']}: {exc}")
@@ -178,10 +238,12 @@ def run_import_worker(config):
             import yt_dlp
 
             class Logger:
-                def __init__(self): self.messages = []
+                def __init__(self): self.messages, self.errors = [], []
                 def debug(self, _): pass
                 def warning(self, message): self.messages.append(str(message))
-                def error(self, message): self.messages.append(str(message))
+                def error(self, message):
+                    self.messages.append(str(message))
+                    self.errors.append(str(message))
 
             logger = Logger()
             options = dict(extract_flat=True, skip_download=True, quiet=True, logger=logger,
@@ -211,20 +273,25 @@ def run_import_worker(config):
                     index = config.get("query_indices", list(range(len(queries))))[position]
                     emit("import_status", text=f"Buscando {position + 1} de {len(queries)}: {query_text}", query_index=index)
                     logger.messages.clear()
+                    logger.errors.clear()
                     try:
                         diagnostics = {}
                         candidates = (search_candidates(query_text, downloader, diagnostics, limit=10, include_thumbnail=True)
                                       if browsing else search_candidates(query_text, downloader, diagnostics))
+                        if not candidates and logger.errors:
+                            raise ValueError(" | ".join(logger.errors))
                         if not candidates and logger.messages:
                             diagnostics["reason"] += " Avisos de YouTube: " + " | ".join(logger.messages)
                         emit("search_result", index=index, query=query_text, candidates=candidates, total=len(queries),
-                             progress_index=position + 1, reason=diagnostics.get("reason", ""), warnings=logger.messages)
+                             progress_index=position + 1, reason=diagnostics.get("reason", ""), warnings=logger.messages,
+                             search_attempts=diagnostics.get("search_attempts", []), matched_query=diagnostics.get("matched_query", ""))
                     except Exception as exc:
                         errors += 1
                         reason = error_reason(exc)
                         emit("import_error", text=f"{query_text}: {reason}", query_index=index)
                         emit("search_result", index=index, query=query_text, candidates=[], total=len(queries), failed=True,
-                             progress_index=position + 1, reason=reason, warnings=logger.messages)
+                             progress_index=position + 1, reason=reason, warnings=logger.messages,
+                             search_attempts=diagnostics.get("search_attempts", []))
         else:
             raise ValueError("Operación desconocida.")
     except Exception as exc:
