@@ -1,0 +1,41 @@
+.venv/
+__pycache__/
+Descargas/
+cookies.txt
+*.part
+*.ytdl
+
+# Bibliotecas y archivos personales: nunca publicar contenido descargado.
+Musica/
+MUSICA_LISTA/
+novela_mushoku/
+*.mp3
+*.mp4
+*.m4a
+*.webm
+*.opus
+*.wav
+*.flac
+*.ogg
+*.aac
+*.mkv
+
+# Binarios externos: instalar FFmpeg/WebView2 por separado.
+*.exe
+*.dll
+
+# Credenciales y configuración privada.
+*cookies*.txt
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+
+# Cachés, registros y reportes de sesiones locales.
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+informe_canciones*.txt
