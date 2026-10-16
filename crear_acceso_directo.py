@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -15,6 +16,14 @@ def create_shortcut(directory=None, name="Descargador"):
     interpreter = APP_DIR / ".venv" / "Scripts" / "pythonw.exe"
     if not interpreter.is_file():
         raise FileNotFoundError("Abre iniciar_descargador.bat antes de crear el acceso directo.")
+    if (not isinstance(name, str) or not name or name != name.strip() or name.endswith(".")
+            or any(char in name for char in '\\/:*?"<>|')):
+        raise ValueError("El nombre del acceso directo no puede contener rutas ni caracteres reservados.")
+    for required in (APP_DIR / "descargador_gui.py", APP_DIR / "assets" / "descargador.ico"):
+        if not required.is_file():
+            raise FileNotFoundError(f"Falta un archivo del proyecto: {required.name}. Conserva la carpeta assets junto al programa.")
+    if directory is not None and not Path(directory).is_dir():
+        raise FileNotFoundError("La carpeta donde se creará el acceso directo no existe.")
     script = r'''
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
@@ -25,6 +34,9 @@ $iconPath = Join-Path $appDirectory 'assets\descargador.ico'
 $shortcutDirectory = $env:DESCARGADOR_SHORTCUT_LOCATION
 if (-not $shortcutDirectory) {
     $shortcutDirectory = [Environment]::GetFolderPath('DesktopDirectory')
+}
+if (-not $shortcutDirectory -or -not (Test-Path -LiteralPath $shortcutDirectory -PathType Container)) {
+    throw 'No se encontro la carpeta del escritorio. Comprueba la configuracion de Windows o OneDrive.'
 }
 $shortcutName = $env:DESCARGADOR_SHORTCUT_NAME
 $shell = New-Object -ComObject WScript.Shell
@@ -41,6 +53,7 @@ $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $interpreter
 $shortcut.Arguments = $arguments
 $shortcut.WorkingDirectory = $appDirectory
+$shortcut.WindowStyle = 1
 $shortcut.IconLocation = $iconPath + ',0'
 $shortcut.Description = 'Descargador de música y video'
 $shortcut.Save()
@@ -61,6 +74,20 @@ ConvertTo-Json -Compress -InputObject $shortcutPath
     return path
 
 
+def main():
+    try:
+        print("Acceso del escritorio: " + str(create_shortcut()))
+        print("Acceso de la carpeta: " + str(create_shortcut(APP_DIR, "ABRIR DESCARGADOR")))
+        print("Listo. Ambos accesos usan el logo y abren la aplicacion sin consola.")
+        return 0
+    except subprocess.CalledProcessError as exc:
+        print("No se pudo crear el acceso directo: " + (exc.stderr or exc.stdout or str(exc)).strip(), file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("Windows tardo demasiado en crear el acceso directo. Vuelve a intentarlo.", file=sys.stderr)
+    except (OSError, ValueError) as exc:
+        print(f"No se pudo crear el acceso directo: {exc}", file=sys.stderr)
+    return 1
+
+
 if __name__ == "__main__":
-    print(create_shortcut())
-    print(create_shortcut(APP_DIR, "ABRIR DESCARGADOR"))
+    sys.exit(main())

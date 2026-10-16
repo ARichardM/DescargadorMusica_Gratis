@@ -11,9 +11,10 @@ if errorlevel 1 (
     ".venv\Scripts\python.exe" -m pip install -r requirements.txt
     if errorlevel 1 goto :error
 )
+if /I "%~1"=="--preparar" exit /b 0
 start "" ".venv\Scripts\pythonw.exe" "%~dp0descargador_gui.py"
 exit /b 0
 :error
 echo No se pudo preparar el programa. Revisa que Python 3.10 o superior este instalado y tengas conexion a Internet.
-pause
+if /I not "%~1"=="--preparar" pause
 exit /b 1
