@@ -20,6 +20,12 @@ public class Song implements Serializable {
         this.artist = (artist != null && !artist.trim().isEmpty() && !artist.equals("<unknown>")) ? artist.trim() : "Artista desconocido";
         this.album = (album != null && !album.trim().isEmpty()) ? album.trim() : "Álbum desconocido";
         this.duration = duration;
+        if ("YouTube".equals(album) && path != null && !path.startsWith("youtube:")) {
+            java.util.regex.Matcher video = java.util.regex.Pattern.compile(
+                    "(?:/vi/|[?&]v=|youtu\\.be/)([A-Za-z0-9_-]{11})").matcher(path);
+            if (video.find()) path = "youtube:" + video.group(1);
+            else if (path.matches("[A-Za-z0-9_-]{11}")) path = "youtube:" + path;
+        }
         this.path = path;
         this.folder = (folder != null && !folder.trim().isEmpty()) ? folder : "Descargas";
         this.dateAdded = dateAdded;
@@ -33,6 +39,12 @@ public class Song implements Serializable {
     public String getPath() { return path; }
     public String getFolder() { return folder; }
     public long getDateAdded() { return dateAdded; }
+
+    public boolean isOnline() { return path != null && path.startsWith("youtube:"); }
+    public String getVideoId() { return isOnline() ? path.substring(8) : null; }
+    public String getCoverPath() {
+        return isOnline() ? "https://i.ytimg.com/vi/" + getVideoId() + "/hqdefault.jpg" : path;
+    }
 
     public String getFormattedDuration() {
         if (duration <= 0) return "--:--";

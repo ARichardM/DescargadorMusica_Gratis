@@ -15,6 +15,7 @@ import android.view.Gravity;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 import cl.arichard.descargador.DescargadorApp;
+import cl.arichard.descargador.data.SearchHistoryManager;
 import cl.arichard.descargador.model.Song;
 import cl.arichard.descargador.service.MusicService;
 import com.yausername.youtubedl_android.YoutubeDL;
@@ -41,6 +42,7 @@ public class PlayerManager {
     private Song currentSong;
     private String currentOnlineVideoId, currentOnlineUrl;
     private SurfaceView videoView;
+    private int resumePosition, savedDuration, lastSavedSecond = -1;
 
     public interface PlaybackListener {
         void onTrackChanged(Song song);
@@ -48,11 +50,15 @@ public class PlayerManager {
         void onProgressUpdate(int position, int duration);
         default void onPlaybackError(String message) {}
         default void onPlaybackLoading(boolean loading) {}
+        default void onQueueChanged() {}
+        default void onVideoAvailabilityChanged(boolean available) {}
     }
 
     private final Runnable progressUpdater = new Runnable() {
         @Override public void run() {
             if (!prepared || mediaPlayer == null) return;
+            int second = getCurrentPosition() / 1000;
+            if (second % 5 == 0 && second != lastSavedSecond) { savePosition(); lastSavedSecond = second; }
             for (PlaybackListener l : new ArrayList<>(listeners))
                 l.onProgressUpdate(getCurrentPosition(), getDuration());
             handler.postDelayed(this, 350);
@@ -63,7 +69,43 @@ public class PlayerManager {
         if (instance == null) instance = new PlayerManager();
         return instance;
     }
-    public void init(Context ctx) { context = ctx.getApplicationContext(); }
+    public void init(Context ctx) {
+        context = ctx.getApplicationContext();
+        android.content.SharedPreferences prefs = context.getSharedPreferences("player", 0);
+        repeatMode = prefs.getInt("repeat", REPEAT_ALL);
+        try {
+            org.json.JSONArray songs = new org.json.JSONArray(prefs.getString("queue", "[]"));
+            queue.clear();
+            for (int i = 0; i < songs.length(); i++) {
+                Song song = Song.fromJson(songs.getJSONObject(i));
+                if (song.isOnline() || new java.io.File(song.getPath()).isFile()) queue.add(song);
+            }
+            originalQueue = new ArrayList<>(queue);
+            String path = prefs.getString("current", "");
+            for (Song song : queue) if (path.equals(song.getPath())) { currentSong = song; break; }
+            currentIndex = indexOf(currentSong);
+            online = currentSong != null && currentSong.isOnline();
+            if (online) {
+                currentOnlineVideoId = currentSong.getVideoId();
+                currentOnlineUrl = "https://www.youtube.com/watch?v=" + currentOnlineVideoId;
+            }
+            resumePosition = prefs.getInt("position", 0); savedDuration = prefs.getInt("duration", 0);
+            playWhenReady = false;
+        } catch (Exception ignored) { queue.clear(); originalQueue.clear(); currentSong = null; currentIndex = -1; }
+    }
+    public void savePosition() {
+        if (context == null) return;
+        context.getSharedPreferences("player", 0).edit().putInt("position", getCurrentPosition())
+                .putInt("duration", getDuration()).apply();
+    }
+    private void saveSession() {
+        if (context == null) return;
+        org.json.JSONArray songs = new org.json.JSONArray();
+        for (Song song : queue) songs.put(song.toJson());
+        context.getSharedPreferences("player", 0).edit().putString("queue", songs.toString())
+                .putString("current", currentSong == null ? "" : currentSong.getPath()).apply();
+        savePosition();
+    }
     public void setMainActivityHost(ViewGroup host) { /* Native audio needs no hidden WebView. */ }
 
     // Activity compatibility: these methods now attach a native video surface.
@@ -102,16 +144,31 @@ public class PlayerManager {
     }
 
     public void playSong(Song song, List<Song> newQueue) {
-        online = false;
+        if (song == null) return;
         if (newQueue != null && !newQueue.isEmpty()) {
             originalQueue = new ArrayList<>(newQueue);
             queue = new ArrayList<>(newQueue);
             if (shuffle) Collections.shuffle(queue);
         }
+        resumePosition = 0; savedDuration = 0;
         currentSong = song;
-        currentIndex = queue.indexOf(song);
+        currentIndex = indexOf(song);
         if (currentIndex < 0 && song != null) { queue.add(0, song); currentIndex = 0; }
-        startLocal();
+        startCurrent();
+        notifyQueue();
+    }
+
+    private int indexOf(Song song) {
+        for (int i = 0; i < queue.size(); i++)
+            if (song != null && song.getPath().equals(queue.get(i).getPath())) return i;
+        return -1;
+    }
+
+    private void startCurrent() {
+        if (currentSong == null) return;
+        lastSavedSecond = -1;
+        if (currentSong.isOnline()) startOnline(currentSong);
+        else { online = false; startLocal(); }
     }
 
     private void startLocal() {
@@ -124,15 +181,17 @@ public class PlayerManager {
     }
 
     public void playOnline(String videoId, String title, String channel, String thumbnail, String url) {
+        Song song = new Song(0, title, channel, "YouTube", 0, "youtube:" + videoId, "YouTube", 0);
+        playSong(song, Collections.singletonList(song));
+    }
+
+    private void startOnline(Song song) {
         releasePlayer();
         final int requestGeneration = generation;
         online = true;
         playWhenReady = true;
-        currentOnlineVideoId = videoId;
-        currentOnlineUrl = "https://www.youtube.com/watch?v=" + videoId;
-        currentSong = new Song(System.currentTimeMillis(), title, channel, "YouTube", 0,
-                thumbnail != null ? thumbnail : "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
-                "YouTube", System.currentTimeMillis());
+        currentOnlineVideoId = song.getVideoId();
+        currentOnlineUrl = "https://www.youtube.com/watch?v=" + currentOnlineVideoId;
         notifyTrack();
         notifyState();
         loading(true);
@@ -173,8 +232,11 @@ public class PlayerManager {
             if (mp != mediaPlayer) return;
             prepared = true;
             fitVideo();
+            notifyVideo();
+            if (resumePosition > 0) { mp.seekTo(Math.min(resumePosition, Math.max(0, mp.getDuration() - 1))); resumePosition = 0; }
             loading(false);
             if (playWhenReady) mp.start();
+            SearchHistoryManager.getInstance(context).recordPlayedSong(currentSong);
             notifyState();
             handler.post(progressUpdater);
             Log.i("MusicBoxPlayer", "Prepared: duration=" + mp.getDuration() + " video=" + mp.getVideoWidth() + "x" + mp.getVideoHeight());
@@ -183,10 +245,12 @@ public class PlayerManager {
             if (mp == mediaPlayer) fail(new IllegalStateException("Error del reproductor " + what + "/" + extra));
             return true;
         });
-        player.setOnVideoSizeChangedListener((mp, width, height) -> fitVideo());
+        player.setOnVideoSizeChangedListener((mp, width, height) -> { fitVideo(); notifyVideo(); });
         player.setOnCompletionListener(mp -> {
-            if (repeatMode == REPEAT_ONE) { mp.seekTo(0); mp.start(); }
-            else if (online) { playWhenReady = false; notifyState(); }
+            if (repeatMode == REPEAT_ONE) {
+                mp.seekTo(0); mp.start();
+                SearchHistoryManager.getInstance(context).recordPlayedSong(currentSong);
+            }
             else playNext();
         });
         if (videoView != null && videoView.getHolder().getSurface().isValid()) player.setDisplay(videoView.getHolder());
@@ -206,10 +270,10 @@ public class PlayerManager {
         notifyState();
     }
     public void togglePlayPause() {
+        if (currentSong == null) return;
         if (!prepared) {
             if (loading) playWhenReady = !playWhenReady;
-            else if (online) playOnline(currentOnlineVideoId, currentSong.getTitle(), currentSong.getArtist(), currentSong.getPath(), currentOnlineUrl);
-            else startLocal();
+            else startCurrent();
             return;
         }
         if (mediaPlayer.isPlaying()) { playWhenReady = false; mediaPlayer.pause(); }
@@ -217,34 +281,119 @@ public class PlayerManager {
         notifyState();
     }
     public void playNext() {
-        if (online || queue.isEmpty()) return;
-        if (repeatMode != REPEAT_ONE) currentIndex++;
+        if (queue.isEmpty()) return;
+        resumePosition = 0; savedDuration = 0;
+        currentIndex++;
         if (currentIndex >= queue.size()) {
-            if (repeatMode != REPEAT_ALL) { releasePlayer(); notifyState(); return; }
+            if (repeatMode != REPEAT_ALL) { currentIndex = queue.size() - 1; playWhenReady = false; releasePlayer(); loading(false); notifyState(); return; }
             currentIndex = 0;
         }
         currentSong = queue.get(Math.max(0, currentIndex));
-        startLocal();
+        startCurrent();
     }
     public void playPrevious() {
-        if (online || getCurrentPosition() > 3000) { seekTo(0); return; }
-        if (queue.isEmpty()) return;
-        currentIndex = currentIndex > 0 ? currentIndex - 1 : (repeatMode == REPEAT_ALL ? queue.size() - 1 : 0);
-        currentSong = queue.get(currentIndex); startLocal();
+        if (getCurrentPosition() > 3000) { seekTo(0); return; }
+        skipPrevious();
     }
-    public void seekTo(int ms) { if (prepared && mediaPlayer != null) mediaPlayer.seekTo(ms); }
+    public void skipPrevious() {
+        if (queue.isEmpty()) return;
+        resumePosition = 0; savedDuration = 0;
+        currentIndex = currentIndex > 0 ? currentIndex - 1 : (repeatMode == REPEAT_ALL ? queue.size() - 1 : 0);
+        currentSong = queue.get(currentIndex); startCurrent();
+    }
+    public void seekTo(int ms) {
+        if (prepared && mediaPlayer != null) mediaPlayer.seekTo(Math.max(0, ms));
+        else resumePosition = Math.max(0, ms);
+        savePosition();
+    }
     public boolean toggleShuffle() {
         shuffle = !shuffle;
         queue = new ArrayList<>(originalQueue);
         if (shuffle) Collections.shuffle(queue);
-        currentIndex = queue.indexOf(currentSong);
+        currentIndex = indexOf(currentSong);
+        notifyQueue();
         return shuffle;
     }
-    public int toggleRepeat() { return repeatMode = (repeatMode + 1) % 3; }
+    public int toggleRepeat() {
+        repeatMode = (repeatMode + 1) % 3;
+        context.getSharedPreferences("player", 0).edit().putInt("repeat", repeatMode).apply();
+        return repeatMode;
+    }
+    public void removeSong(String path) {
+        boolean current = currentSong != null && path.equals(currentSong.getPath());
+        queue.removeIf(s -> path.equals(s.getPath()));
+        originalQueue.removeIf(s -> path.equals(s.getPath()));
+        if (current) {
+            releasePlayer(); loading(false); currentSong = null; currentIndex = -1; resumePosition = 0; savedDuration = 0;
+            notifyTrack(); notifyState();
+            context.stopService(new android.content.Intent(context, MusicService.class));
+        } else currentIndex = indexOf(currentSong);
+        notifyQueue();
+    }
+
+    public List<Song> getQueue() { return new ArrayList<>(queue); }
+    public int getCurrentIndex() { return currentIndex; }
+    public void playQueueIndex(int index) {
+        if (index < 0 || index >= queue.size()) return;
+        resumePosition = 0; savedDuration = 0;
+        currentIndex = index; currentSong = queue.get(index); startCurrent();
+    }
+    public void enqueue(Song song, boolean playNext) {
+        if (song == null) return;
+        if (currentSong == null) { playSong(song, Collections.singletonList(song)); return; }
+        int existing = indexOf(song);
+        if (existing == currentIndex) return;
+        if (existing >= 0) {
+            queue.remove(existing);
+            if (existing < currentIndex) currentIndex--;
+        }
+        queue.add(playNext ? Math.min(currentIndex + 1, queue.size()) : queue.size(), song);
+        originalQueue = new ArrayList<>(queue);
+        notifyQueue();
+    }
+    public void moveQueueItem(int from, int to) {
+        if (from < 0 || to < 0 || from >= queue.size() || to >= queue.size() || from == to) return;
+        Song song = queue.remove(from); queue.add(to, song);
+        if (currentIndex == from) currentIndex = to;
+        else if (from < currentIndex && to >= currentIndex) currentIndex--;
+        else if (from > currentIndex && to <= currentIndex) currentIndex++;
+        originalQueue = new ArrayList<>(queue); notifyQueue();
+    }
+    public void removeQueueItem(int index) {
+        if (index < 0 || index >= queue.size()) return;
+        boolean active = index == currentIndex;
+        queue.remove(index); originalQueue = new ArrayList<>(queue);
+        if (index < currentIndex) currentIndex--;
+        if (active) {
+            if (queue.isEmpty()) {
+                releasePlayer(); loading(false); currentSong = null; currentIndex = -1; resumePosition = 0; savedDuration = 0;
+                notifyTrack(); notifyState();
+                context.stopService(new android.content.Intent(context, MusicService.class));
+            } else {
+                resumePosition = 0; savedDuration = 0;
+                currentIndex = Math.min(index, queue.size() - 1);
+                currentSong = queue.get(currentIndex); startCurrent();
+            }
+        }
+        notifyQueue();
+    }
+    public void clearUpcoming() {
+        if (currentSong == null) { queue.clear(); originalQueue.clear(); currentIndex = -1; }
+        else { queue = new ArrayList<>(Collections.singletonList(currentSong)); originalQueue = new ArrayList<>(queue); currentIndex = 0; }
+        notifyQueue();
+    }
+    private void notifyQueue() { saveSession(); for (PlaybackListener l : new ArrayList<>(listeners)) l.onQueueChanged(); }
     public boolean isPlaying() { return prepared && mediaPlayer != null && mediaPlayer.isPlaying(); }
     public boolean isLoading() { return loading; }
-    public int getCurrentPosition() { return prepared && mediaPlayer != null ? mediaPlayer.getCurrentPosition() : 0; }
-    public int getDuration() { return prepared && mediaPlayer != null ? mediaPlayer.getDuration() : 0; }
+    public boolean hasVideo() {
+        return prepared && mediaPlayer != null && mediaPlayer.getVideoWidth() > 0 && mediaPlayer.getVideoHeight() > 0;
+    }
+    private void notifyVideo() {
+        boolean available = hasVideo();
+        for (PlaybackListener listener : new ArrayList<>(listeners)) listener.onVideoAvailabilityChanged(available);
+    }
+    public int getCurrentPosition() { return prepared && mediaPlayer != null ? mediaPlayer.getCurrentPosition() : resumePosition; }
+    public int getDuration() { return prepared && mediaPlayer != null ? mediaPlayer.getDuration() : savedDuration; }
     public Song getCurrentSong() { return currentSong; }
     public boolean isOnlineTrack() { return online; }
     public String getCurrentOnlineVideoId() { return currentOnlineVideoId; }
@@ -253,8 +402,9 @@ public class PlayerManager {
     public int getRepeatMode() { return repeatMode; }
     public void addListener(PlaybackListener l) { if (l != null && !listeners.contains(l)) listeners.add(l); }
     public void removeListener(PlaybackListener l) { listeners.remove(l); }
-    private void notifyTrack() { for (PlaybackListener l : new ArrayList<>(listeners)) l.onTrackChanged(currentSong); }
+    private void notifyTrack() { saveSession(); for (PlaybackListener l : new ArrayList<>(listeners)) l.onTrackChanged(currentSong); }
     private void notifyState() {
+        savePosition();
         boolean playing = isPlaying();
         for (PlaybackListener l : new ArrayList<>(listeners)) l.onPlaybackStateChanged(playing);
         if (currentSong != null) MusicService.updateNotification(context, currentSong, playing);

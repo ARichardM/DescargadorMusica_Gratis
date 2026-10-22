@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/searchResultRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -18,7 +19,7 @@
         <ImageView android:id="@+id/btnPlayResult" android:layout_width="28dp"
             android:layout_height="28dp" android:layout_gravity="center"
             android:padding="5dp" android:src="@drawable/ic_play_arrow"
-            android:background="@drawable/bg_play_circle" android:tint="#000000"
+            android:background="@drawable/bg_play_circle" app:tint="#000000"
             android:contentDescription="Reproducir"/>
         <ImageView android:id="@+id/imgDownloadedResult" android:layout_width="22dp"
             android:layout_height="22dp" android:layout_gravity="top|end"
@@ -68,6 +69,6 @@
             android:layout_height="18dp"
             android:layout_gravity="center"
             android:src="@drawable/ic_add"
-            android:tint="#FFFFFF"/>
+            app:tint="#FFFFFF"/>
     </FrameLayout>
 </LinearLayout>

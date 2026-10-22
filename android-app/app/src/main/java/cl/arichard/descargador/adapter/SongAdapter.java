@@ -39,6 +39,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     public SongAdapter(Context context, List<Song> songs, OnSongClickListener listener) {
         this.context = context;
         this.listener = listener;
+        setHasStableIds(true);
         updateSongs(songs);
     }
 
@@ -61,6 +62,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     }
 
     private void applyFiltersAndSort() {
+        List<Song> before = new ArrayList<>(displayedList);
         displayedList.clear();
         PlaylistManager pm = PlaylistManager.getInstance(context);
 
@@ -92,7 +94,21 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
             Collections.sort(displayedList, (a, b) -> a.getTitle().compareToIgnoreCase(b.getTitle()));
         }
 
-        notifyDataSetChanged();
+        List<Song> after = new ArrayList<>(displayedList);
+        androidx.recyclerview.widget.DiffUtil.calculateDiff(new androidx.recyclerview.widget.DiffUtil.Callback() {
+            @Override public int getOldListSize() { return before.size(); }
+            @Override public int getNewListSize() { return after.size(); }
+            @Override public boolean areItemsTheSame(int a, int b) { return before.get(a).getPath().equals(after.get(b).getPath()); }
+            @Override public boolean areContentsTheSame(int a, int b) {
+                Song old = before.get(a), next = after.get(b);
+                return old.getTitle().equals(next.getTitle()) && old.getArtist().equals(next.getArtist()) && old.getDuration() == next.getDuration();
+            }
+        }).dispatchUpdatesTo(this);
+    }
+    @Override public long getItemId(int position) {
+        long id = 0xcbf29ce484222325L;
+        for (char value : displayedList.get(position).getPath().toCharArray()) id = (id ^ value) * 0x100000001b3L;
+        return id;
     }
 
     public List<Song> getDisplayedList() { return displayedList; }
@@ -109,7 +125,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         holder.txtTitle.setText(song.getTitle());
         holder.txtSubtitle.setText(song.getArtist() + " • " + song.getFormattedDuration());
 
-        CoverArtLoader.getInstance().loadSongCover(song.getPath(), holder.imgCover);
+        CoverArtLoader.getInstance().loadSongCover(song.getCoverPath(), holder.imgCover);
 
         boolean isLocalFile = song.getPath() != null && new File(song.getPath()).exists();
         if (holder.imgDownloadedBadge != null) {
@@ -122,6 +138,9 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         int accentColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.accent);
         int primaryTextColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.text_primary);
 
+        holder.itemView.setBackgroundResource(isPlayingThis ? R.drawable.bg_song_playing : 0);
+        holder.imgIndicator.setImageResource(PlayerManager.getInstance().isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play_arrow);
+        holder.itemView.setContentDescription(song.getTitle() + (isPlayingThis ? " · Canción actual" : ""));
         if (isPlayingThis) {
             holder.txtTitle.setTextColor(accentColor);
             holder.viewPlayingOverlay.setVisibility(View.VISIBLE);
@@ -148,6 +167,9 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         holder.btnMenu.setOnClickListener(v -> {
             if (listener != null) listener.onMenuClick(song, holder.btnMenu, position);
         });
+        cl.arichard.descargador.util.SafeTap.install(holder.btnMenu);
+        cl.arichard.descargador.util.SafeTap.install(holder.btnFavorite);
+        cl.arichard.descargador.util.SafeTap.installRowTap(holder.itemView);
     }
 
     @Override public int getItemCount() { return displayedList.size(); }

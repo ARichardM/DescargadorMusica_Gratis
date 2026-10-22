@@ -19,7 +19,9 @@ public class CoverArtLoader {
 
     private CoverArtLoader() {
         int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
-        cache = new LruCache<>(maxMemory / 8);
+        cache = new LruCache<String, Bitmap>(maxMemory / 8) {
+            @Override protected int sizeOf(String key, Bitmap value) { return Math.max(1, value.getByteCount() / 1024); }
+        };
     }
 
     public static synchronized CoverArtLoader getInstance() {
@@ -28,7 +30,9 @@ public class CoverArtLoader {
     }
 
     public void loadSongCover(String songPath, ImageView imageView) {
-        if (songPath == null || imageView == null) return;
+        if (imageView == null) return;
+        imageView.setImageResource(R.drawable.bg_cover_fallback);
+        if (songPath == null) { imageView.setTag(null); return; }
 
         // If online YouTube thumbnail url, delegate to ImageLoader
         if (songPath.startsWith("http://") || songPath.startsWith("https://")) {
@@ -47,12 +51,18 @@ public class CoverArtLoader {
         executor.execute(() -> {
             Bitmap bmp = null;
             try {
+                byte[] data;
                 MediaMetadataRetriever mmr = new MediaMetadataRetriever();
-                mmr.setDataSource(songPath);
-                byte[] data = mmr.getEmbeddedPicture();
-                mmr.release();
+                try { mmr.setDataSource(songPath); data = mmr.getEmbeddedPicture(); }
+                finally { mmr.release(); }
                 if (data != null && data.length > 0) {
-                    bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
+                    BitmapFactory.Options bounds = new BitmapFactory.Options();
+                    bounds.inJustDecodeBounds = true;
+                    BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inSampleSize = 1;
+                    while (Math.max(bounds.outWidth, bounds.outHeight) / options.inSampleSize > 640) options.inSampleSize *= 2;
+                    bmp = BitmapFactory.decodeByteArray(data, 0, data.length, options);
                 }
             } catch (Exception ignored) {}
 
@@ -63,7 +73,7 @@ public class CoverArtLoader {
                         cache.put(songPath, result);
                         imageView.setImageBitmap(result);
                     } else {
-                        imageView.setImageResource(R.drawable.ic_music_note);
+                        imageView.setImageResource(R.drawable.bg_cover_fallback);
                     }
                 }
             });

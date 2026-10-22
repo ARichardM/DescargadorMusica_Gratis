@@ -2,6 +2,36 @@
 
 ## Sin publicar
 
+### MusicBox Android 2.2.0
+
+- Bucle desactivado, de lista o de canción, con estado visible y preferencia guardada.
+- Acciones del reproductor para añadir a playlists, copiar o descargar a carpetas
+  y eliminar una canción con confirmación y comprobación del resultado.
+- Mi música conserva la colección abierta, los filtros, la búsqueda y el desplazamiento.
+- La canción actual se destaca con fondo, borde, color y un indicador de reproducción.
+- Botón compacto para localizar la canción activa en la lista.
+- Gestos horizontales en el minirreproductor para avanzar o retroceder, conservando
+  el gesto hacia arriba para abrir el reproductor completo.
+- Cola editable en un panel inferior: añadir varias canciones, reproducir después,
+  arrastrar para reordenar, quitar entradas y limpiar conservando la canción actual.
+- Cola compartida entre canciones locales y online, guardada junto a la canción y
+  la posición de reproducción; al volver a abrir se recupera en pausa.
+- Carpetas y playlists muestran collages de hasta cuatro portadas, ordenadas por
+  reproducciones, incluidas las canciones que avanzan automáticamente.
+- Indicador de descarga con flecha y tic.
+- Gestos delimitados por sección: navegación entre pestañas desde el contenido,
+  prioridad de carruseles y filtros, cierre del reproductor solo desde su portada y reordenamiento de cola
+  sin arrastrar el panel. Cancelar un gesto nunca cambia de canción ni cierra el reproductor.
+- Navegación encima del minirreproductor, animada al mostrarlo u ocultarlo, y
+  transición de portada y título que acompaña el swipe entre canciones.
+- Navbar con botones y selector arrastrable; páginas y reproductor expandido
+  acompañan el movimiento del dedo antes de completar o cancelar el gesto.
+- Menú de tres puntos con iconos para playlist, carpeta, eliminación y cola.
+- El cambio de tema conserva biblioteca, resultados de búsqueda, posición y tareas
+  de descarga; el selector MP4 se oculta para fuentes sin video.
+- Filtros animados, cabeceras compactas, botones de texto enmarcados y centrados,
+  y protección de las zonas de acciones frente a pulsaciones durante el scroll.
+
 ### MusicBox Android 2.1.1
 
 - Se incorpora el proyecto Android completo, con Gradle Wrapper y APK instalable.

@@ -64,21 +64,25 @@ public class FolderAdapter extends RecyclerView.Adapter<FolderAdapter.FolderView
         List<Song> songs = allFolders.get(name);
         int count = songs != null ? songs.size() : 0;
 
+        holder.collage.setSongs(songs);
         holder.txtName.setText(name);
         holder.txtCount.setText(count + (count == 1 ? " canción" : " canciones"));
 
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onFolderClick(name, songs);
         });
+        cl.arichard.descargador.util.SafeTap.installRowTap(holder.itemView);
     }
 
     @Override public int getItemCount() { return displayedFolderNames.size(); }
 
     static class FolderViewHolder extends RecyclerView.ViewHolder {
         TextView txtName, txtCount;
+        cl.arichard.descargador.util.CoverCollageView collage;
 
         public FolderViewHolder(@NonNull View itemView) {
             super(itemView);
+            collage = itemView.findViewById(R.id.folderCollage);
             txtName = itemView.findViewById(R.id.txtFolderName);
             txtCount = itemView.findViewById(R.id.txtFolderSongCount);
         }

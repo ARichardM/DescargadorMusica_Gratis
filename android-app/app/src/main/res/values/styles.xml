@@ -10,8 +10,24 @@
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="android:windowAnimationStyle">@style/WindowAnim</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.MusicBox.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.MusicBox.DialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.MusicBox.DialogButton</item>
+    </style>
+    <style name="Widget.MusicBox.DialogButton" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/bg_text_button</item>
+        <item name="android:textColor">@color/accent</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minWidth">84dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:layout_margin">4dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
     </style>
     <style name="Theme.MusicBox.NowPlaying" parent="Theme.MusicBox">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:statusBarColor">@color/bg_primary</item>
         <item name="android:navigationBarColor">@color/bg_primary</item>
     </style>

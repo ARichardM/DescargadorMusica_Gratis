@@ -67,7 +67,7 @@ public class SearchHistoryManager {
         if (song == null) return;
         List<Song> recents = getRecentPlayedSongs();
         for (int i = 0; i < recents.size(); i++) {
-            if (recents.get(i).getTitle().equalsIgnoreCase(song.getTitle())) {
+            if (recents.get(i).getPath().equals(song.getPath())) {
                 recents.remove(i);
                 break;
             }
@@ -103,7 +103,19 @@ public class SearchHistoryManager {
 
     public int getPlayCount(String key) {
         if (key == null) return 0;
-        return prefs.getInt(KEY_PLAY_COUNTS + "_" + key.hashCode(), 0);
+        int count = prefs.getInt(KEY_PLAY_COUNTS + "_" + key.hashCode(), 0);
+        if (key.startsWith("youtube:")) {
+            String id = key.substring(8);
+            for (String size : new String[]{"hqdefault", "mqdefault"})
+                count += prefs.getInt(KEY_PLAY_COUNTS + "_" + ("https://i.ytimg.com/vi/" + id + "/" + size + ".jpg").hashCode(), 0);
+        }
+        return count;
+    }
+
+    public void removeSong(String path) {
+        JSONArray songs = new JSONArray();
+        for (Song song : getRecentPlayedSongs()) if (!path.equals(song.getPath())) songs.put(song.toJson());
+        prefs.edit().putString(KEY_RECENT_SONGS, songs.toString()).apply();
     }
 
     // 3. Top Most Played Songs from library

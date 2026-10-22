@@ -40,7 +40,7 @@
             android:layout_height="26dp"
             android:layout_gravity="center"
             android:src="@drawable/ic_play_arrow"
-            android:tint="@color/accent"
+            app:tint="@color/accent"
             android:visibility="gone"/>
     </androidx.cardview.widget.CardView>
 
@@ -72,11 +72,12 @@
             <!-- Compact Downloaded / Offline badge -->
             <ImageView
                 android:id="@+id/imgDownloadedBadge"
-                android:layout_width="13dp"
-                android:layout_height="13dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="Descargada en el dispositivo"
                 android:layout_marginEnd="5dp"
                 android:src="@drawable/ic_downloaded_badge"
-                android:tint="@color/accent"
+                app:tint="@color/accent"
                 android:visibility="visible"/>
 
             <TextView
@@ -91,19 +92,24 @@
         </LinearLayout>
     </LinearLayout>
 
+    <cl.arichard.descargador.util.GuardedActionsLayout
+        android:id="@+id/songActionZone"
+        android:layout_width="96dp" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center">
     <ImageView
         android:id="@+id/btnFavorite"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:padding="8dp"
         android:src="@drawable/ic_favorite"
         android:background="?attr/selectableItemBackgroundBorderless"/>
 
     <ImageView
         android:id="@+id/btnSongMenu"
-        android:layout_width="34dp"
-        android:layout_height="34dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:padding="7dp"
         android:src="@drawable/ic_more_vert"
         android:background="?attr/selectableItemBackgroundBorderless"/>
+    </cl.arichard.descargador.util.GuardedActionsLayout>
 </LinearLayout>

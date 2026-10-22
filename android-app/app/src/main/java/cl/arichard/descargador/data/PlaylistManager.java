@@ -195,6 +195,28 @@ public class PlaylistManager {
         return favs != null && favs.contains(songPath);
     }
 
+    public synchronized void removeSongEverywhere(String path) {
+        for (List<String> entries : playlists.values()) entries.remove(path);
+        if (path.startsWith("youtube:")) onlineTracks.remove(path.substring(8));
+        save();
+    }
+
+    public synchronized List<cl.arichard.descargador.model.Song> resolveSongs(String name,
+            List<cl.arichard.descargador.model.Song> library) {
+        List<cl.arichard.descargador.model.Song> songs = new ArrayList<>();
+        for (String entry : getSongPaths(name)) {
+            SearchResult result = getOnlineTrack(entry);
+            if (result != null) {
+                songs.add(new cl.arichard.descargador.model.Song(0, result.getTitle(), result.getChannel(),
+                        "YouTube", result.getDurationSeconds() * 1000L, entry, "YouTube", 0));
+            } else {
+                for (cl.arichard.descargador.model.Song song : library)
+                    if (entry.equals(song.getPath())) { songs.add(song); break; }
+            }
+        }
+        return songs;
+    }
+
     public synchronized boolean toggleFavorite(String songPath) {
         if (isFavorite(songPath)) {
             removeSongFromPlaylist("Favoritos", songPath);

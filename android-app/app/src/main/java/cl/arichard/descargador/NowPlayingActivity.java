@@ -3,10 +3,7 @@ package cl.arichard.descargador;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.MotionEvent;
-import android.view.VelocityTracker;
 import android.view.View;
-import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -53,9 +50,6 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
     private boolean isMp3Mode = true;
     private boolean isUserSeeking = false;
     private boolean isDownloading = false;
-    private float initialTouchY = 0;
-    private boolean isDraggingDown = false;
-    private VelocityTracker velocityTracker;
 
     private String onlineVideoId;
     private String onlineUrl;
@@ -67,7 +61,12 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
 
         initViews();
         setupClickListeners();
+        cl.arichard.descargador.util.SafeTap.installButtons(nowPlayingRoot);
+        cl.arichard.descargador.util.SafeTap.install(btnPlayPauseCircle);
         setupSwipeDownToDismiss();
+        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
+            @Override public void handleOnBackPressed() { closeWithSlideDown(); }
+        });
 
         handleIncomingIntent(getIntent());
     }
@@ -117,6 +116,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
     }
 
     private void setupClickListeners() {
+        findViewById(R.id.btnPlayerMore).setOnClickListener(this::showPlayerMenu);
         btnBack.setOnClickListener(v -> closeWithSlideDown());
 
         tabSelectorMp3.setOnClickListener(v -> setMediaMode(true));
@@ -134,6 +134,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         btnRepeat.setOnClickListener(v -> {
             int mode = PlayerManager.getInstance().toggleRepeat();
             updateRepeatButton(mode);
+            Toast.makeText(this, repeatLabel(mode), Toast.LENGTH_SHORT).show();
         });
 
         btnAction.setOnClickListener(v -> {
@@ -163,6 +164,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
     }
 
     private void setMediaMode(boolean mp3) {
+        mp3 = mp3 || !PlayerManager.getInstance().hasVideo();
         isMp3Mode = mp3;
         if (mp3) PlayerManager.getInstance().detachOnlineWebView();
         else PlayerManager.getInstance().attachOnlineWebView(videoHostLayout);
@@ -263,68 +265,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
     }
 
     private void setupSwipeDownToDismiss() {
-        nowPlayingRoot.setOnTouchListener((v, event) -> {
-            if (velocityTracker == null) {
-                velocityTracker = VelocityTracker.obtain();
-            }
-            velocityTracker.addMovement(event);
-
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    initialTouchY = event.getRawY();
-                    isDraggingDown = false;
-                    return true;
-
-                case MotionEvent.ACTION_MOVE:
-                    float dy = event.getRawY() - initialTouchY;
-                    if (dy > 12 && !isDraggingDown) {
-                        isDraggingDown = true;
-                    }
-                    if (isDraggingDown) {
-                        if (dy > 0) {
-                            nowPlayingRoot.setTranslationY(dy);
-                            float progress = Math.min(1.0f, dy / (float) getResources().getDisplayMetrics().heightPixels);
-                            nowPlayingRoot.setAlpha(1.0f - (progress * 0.45f));
-                        } else {
-                            float rubberBand = (float) (-Math.pow(-dy, 0.72) * 1.5);
-                            nowPlayingRoot.setTranslationY(rubberBand);
-                            nowPlayingRoot.setAlpha(1.0f);
-                        }
-                        return true;
-                    }
-                    break;
-
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (isDraggingDown) {
-                        float finalDy = event.getRawY() - initialTouchY;
-                        velocityTracker.computeCurrentVelocity(1000);
-                        float yVelocity = velocityTracker.getYVelocity();
-
-                        int screenHeight = getResources().getDisplayMetrics().heightPixels;
-                        boolean shouldDismiss = finalDy > (screenHeight * 0.22f) || yVelocity > 1400;
-
-                        if (shouldDismiss) {
-                            closeWithSlideDown();
-                        } else {
-                            nowPlayingRoot.animate()
-                                    .translationY(0)
-                                    .alpha(1.0f)
-                                    .setDuration(280)
-                                    .setInterpolator(new OvershootInterpolator(0.9f))
-                                    .start();
-                        }
-                        isDraggingDown = false;
-                        if (velocityTracker != null) {
-                            velocityTracker.recycle();
-                            velocityTracker = null;
-                        }
-                        return true;
-                    }
-                    break;
-            }
-            return false;
-        });
+        ((cl.arichard.descargador.util.PlayerDismissLayout) nowPlayingRoot).setDismissAction(this::closeWithSlideDown);
     }
 
     private void closeWithSlideDown() {
@@ -333,13 +274,8 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
                 .translationY(screenHeight)
                 .alpha(0.0f)
                 .setDuration(220)
-                .withEndAction(this::finish)
+                .withEndAction(() -> { finish(); overridePendingTransition(0, 0); })
                 .start();
-    }
-
-    @Override
-    public void onBackPressed() {
-        closeWithSlideDown();
     }
 
     @Override
@@ -364,15 +300,17 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
 
     @Override
     protected void onPause() {
+        PlayerManager.getInstance().savePosition();
         super.onPause();
         PlayerManager.getInstance().removeListener(this);
-        if (PlayerManager.getInstance().isOnlineTrack()) {
-            PlayerManager.getInstance().detachOnlineWebView();
-        }
+        PlayerManager.getInstance().detachOnlineWebView();
     }
 
     private void updateSongInfo(Song song) {
-        if (song == null) return;
+        if (song == null) { finish(); return; }
+        onlineVideoId = song.getVideoId();
+        onlineUrl = song.isOnline() ? "https://www.youtube.com/watch?v=" + onlineVideoId : null;
+        updateVideoAvailability();
         txtTitle.setText(song.getTitle());
         txtArtist.setText(song.getArtist());
 
@@ -384,9 +322,43 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         }
 
         if (imgNowPlayingCover != null) {
-            CoverArtLoader.getInstance().loadSongCover(song.getPath(), imgNowPlayingCover);
+            CoverArtLoader.getInstance().loadSongCover(song.getCoverPath(), imgNowPlayingCover);
         }
     }
+
+    private void showPlayerMenu(View anchor) {
+        Song song = PlayerManager.getInstance().getCurrentSong();
+        if (song == null) return;
+        androidx.appcompat.widget.PopupMenu menu = new androidx.appcompat.widget.PopupMenu(this, anchor);
+        menu.setForceShowIcon(true);
+        menu.getMenu().add("Agregar a playlist").setIcon(R.drawable.ic_playlist).setOnMenuItemClickListener(item -> {
+            cl.arichard.descargador.util.SongActions.addToPlaylist(this, song, () -> updateSongInfo(PlayerManager.getInstance().getCurrentSong())); return true;
+        });
+        menu.getMenu().add("Agregar a carpeta").setIcon(R.drawable.ic_folder).setOnMenuItemClickListener(item -> {
+            DescargadorApp.IO.execute(() -> {
+                java.util.List<Song> library = cl.arichard.descargador.data.MusicScanner.scanAllMusic(this);
+                runOnUiThread(() -> { if (!isFinishing()) cl.arichard.descargador.util.SongActions.addToFolder(this, song, library, () -> {}); });
+            });
+            return true;
+        });
+        menu.getMenu().add("Eliminar canci\u00f3n").setIcon(R.drawable.ic_delete).setOnMenuItemClickListener(item -> {
+            cl.arichard.descargador.util.SongActions.delete(this, song, this::finish); return true;
+        });
+        menu.getMenu().add("Cola de reproducci\u00f3n").setIcon(R.drawable.ic_queue).setOnMenuItemClickListener(item -> {
+            cl.arichard.descargador.player.QueueSheet.show(this); return true;
+        });
+        for (int i = 0; i < menu.getMenu().size(); i++) {
+            android.graphics.drawable.Drawable icon = menu.getMenu().getItem(i).getIcon();
+            if (icon != null) icon.mutate().setTint(ContextCompat.getColor(this, R.color.text_primary));
+        }
+        menu.show();
+    }
+    private void updateVideoAvailability() {
+        boolean available = PlayerManager.getInstance().hasVideo();
+        tabSelectorMp4.setVisibility(available ? View.VISIBLE : View.GONE);
+        if (!available && !isMp3Mode) setMediaMode(true);
+    }
+    @Override public void onVideoAvailabilityChanged(boolean available) { updateVideoAvailability(); }
 
     private void updatePlaybackState(boolean isPlaying) {
         btnPlayPauseIcon.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play_arrow);
@@ -407,10 +379,17 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
 
     private void updateShuffleButton(boolean active) {
         btnShuffle.setAlpha(active ? 1.0f : 0.45f);
-        btnShuffle.setColorFilter(active ? ContextCompat.getColor(this, R.color.chip_active_text) : ContextCompat.getColor(this, R.color.text_primary));
+        btnShuffle.setColorFilter(active ? ContextCompat.getColor(this, R.color.accent) : ContextCompat.getColor(this, R.color.text_primary));
+    }
+
+    private String repeatLabel(int mode) {
+        return mode == PlayerManager.REPEAT_ONE ? "Repetir canción" :
+                mode == PlayerManager.REPEAT_ALL ? "Repetir lista" : "Bucle desactivado";
     }
 
     private void updateRepeatButton(int mode) {
+        btnRepeat.setContentDescription(repeatLabel(mode));
+        ((TextView) findViewById(R.id.txtRepeatMode)).setText(repeatLabel(mode));
         if (mode == PlayerManager.REPEAT_OFF) {
             btnRepeat.setAlpha(0.45f);
             btnRepeat.setImageResource(R.drawable.ic_repeat);
@@ -418,11 +397,11 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         } else if (mode == PlayerManager.REPEAT_ALL) {
             btnRepeat.setAlpha(1.0f);
             btnRepeat.setImageResource(R.drawable.ic_repeat);
-            btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.chip_active_text));
+            btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.accent));
         } else {
             btnRepeat.setAlpha(1.0f);
             btnRepeat.setImageResource(R.drawable.ic_repeat_one);
-            btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.chip_active_text));
+            btnRepeat.setColorFilter(ContextCompat.getColor(this, R.color.accent));
         }
     }
 

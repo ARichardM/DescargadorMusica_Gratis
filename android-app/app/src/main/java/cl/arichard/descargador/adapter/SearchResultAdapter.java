@@ -62,6 +62,7 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
         }
         notifyDataSetChanged();
     }
+    public List<SearchResult> getResults() { return new ArrayList<>(results); }
 
     @NonNull
     @Override
@@ -88,6 +89,10 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
         });
 
         holder.btnPlay.setOnClickListener(v -> { if (listener != null) listener.onPlayClick(item); });
+        cl.arichard.descargador.util.SafeTap.install(holder.btnPlay);
+        cl.arichard.descargador.util.SafeTap.install(holder.btnFavorite);
+        cl.arichard.descargador.util.SafeTap.install(holder.btnAdd);
+        cl.arichard.descargador.util.SafeTap.installRowTap(holder.itemView);
         holder.btnFavorite.setOnClickListener(v -> {
             PlaylistManager pm = PlaylistManager.getInstance(context);
             boolean exists = pm.isOnlineTrackInPlaylist("Favoritos", item.getId());
