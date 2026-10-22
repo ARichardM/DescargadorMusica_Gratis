@@ -227,7 +227,7 @@ class ImportSongsDialog(tk.Toplevel):
                   style="Muted.TLabel").pack(side="bottom", fill="x", before=self.songs, pady=(6, 0))
 
     def build_search_tab(self):
-        ttk.Label(self.search_tab, text="Doble clic para cambiar la elección. Escucha con ▶ y la barra a la derecha de cada resultado; «Reproducir» conserva el reproductor de video.",
+        ttk.Label(self.search_tab, text="Solo se marcan automáticamente coincidencias verificables. Las dudosas quedan para revisión; puedes elegirlas con doble clic y escucharlas con ▶.",
                   style="Muted.TLabel", wraplength=880).pack(anchor="w", pady=(0, 12))
         self.results_filter = SongFilter(self.search_tab, self.filter_results)
         self.results_filter.pack(fill="x", pady=(0, 10))
@@ -315,16 +315,27 @@ class ImportSongsDialog(tk.Toplevel):
         else:
             lines.append("Playlist original sin comprobar. El texto copiado no permite detectar entradas ocultas/no disponibles. Pega el enlace en «Tabla de canciones → Playlist original» y pulsa «Comprobar».")
         lines.append("")
+        ambiguous = [(number, entry) for number, (_, entry) in enumerate(self.songs.entries(), 1)
+                     if entry.review_reason]
+        if ambiguous:
+            lines.extend([f"IMPORTACIÓN: {len(ambiguous)} bloques ambiguos; se importaron sin dividir y sin marcar.", ""])
+            for number, entry in ambiguous:
+                lines.extend([f"Fila {number}: {entry.title}", entry.review_reason,
+                              "Texto original:", entry.raw_text, ""])
         if self.searched_queries:
             pending = self.pending_indices()
             lines.extend([f"BÚSQUEDA: {len(self.searched_queries)} consultas únicas · {len(self.selected_candidates)} elegidas · {len(pending)} pendientes.",
                           "Las entradas no disponibles de la playlist y los pendientes de búsqueda son recuentos separados.", ""])
+            source_rows = sum(len(group) for group in self.search_row_groups)
+            if source_rows > len(self.searched_queries):
+                lines.extend([f"TABLA: {source_rows} filas marcadas → {len(self.searched_queries)} consultas únicas; "
+                              f"{source_rows - len(self.searched_queries)} repeticiones agrupadas. No son errores ni canciones perdidas.", ""])
             for index in pending:
                 outcome = self.search_outcomes.get(index)
                 if outcome is None:
                     reason = self.query_errors.get(index) or "Consulta no completada (cancelación o cierre inesperado del proceso). Reintenta."
                 elif outcome.get("candidates"):
-                    reason = "Hay alternativas, pero ninguna está elegida. Revisa «Coincidencias» y selecciona una."
+                    reason = outcome.get("auto_review_reason") or "Hay alternativas, pero ninguna está elegida. Revisa «Coincidencias» y selecciona una."
                 else:
                     reason = outcome.get("reason") or self.query_errors.get(index) or "YouTube no devolvió alternativas utilizables; revisa el nombre o reintenta."
                 lines.extend([f"{index + 1}. {self.searched_queries[index]}", f"   {'ERROR' if outcome and outcome.get('failed') else 'PENDIENTE'}: {reason}", ""])
@@ -593,6 +604,7 @@ class ImportSongsDialog(tk.Toplevel):
                 self.songs.set_queries(clean_queries(text, enforce_limit=False), self.query_sources, self.query_uploaders)
                 self.import_summary = ""
             self.synced_text = text
+            self.update_report()
         self.names.edit_modified(False)
 
     def on_table_changed(self):
@@ -744,6 +756,7 @@ class ImportSongsDialog(tk.Toplevel):
             self.result_counts[row] = count
             self.set_search_state(index, "Error" if event.get("failed") else f"{count} {'resultado' if count == 1 else 'resultados'}" if count else "Sin resultados")
         metadata = {}
+        entry = None
         if index < len(self.search_row_ids):
             entry = self.songs.items.get(self.search_row_ids[index])
             if entry:
@@ -751,7 +764,15 @@ class ImportSongsDialog(tk.Toplevel):
         match = best_candidate(event["query"], event["candidates"], **metadata)
         if match is not None and index not in self.selected_candidates:
             position, comparison = match
-            self.select_candidate(items[position], label="✓ Auto · " + ("exacta" if comparison.exact else "similar"))
+            review_reason = (entry.review_reason if entry else "") or comparison.review_reason
+            if comparison.auto_select and not review_reason:
+                self.select_candidate(items[position], label="✓ Auto · " + ("exacta" if comparison.exact else "similar"))
+            else:
+                event["auto_review_reason"] = review_reason + " Revisa las alternativas y elige una manualmente."
+                self.results.set(items[position], "chosen", "Revisar · sin marcar")
+                if index < len(self.search_row_ids):
+                    self.set_search_state(index, "Revisar coincidencia")
+                self.update_report()
         self.filter_results()
 
     def filter_results(self):

@@ -1,0 +1,477 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/bg_primary">
+
+    <FrameLayout android:id="@+id/contentFrame"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        >
+
+        <!-- ═══ TAB: BUSCAR ═══ -->
+        <LinearLayout android:id="@+id/tabSearch"
+            android:layout_width="match_parent" android:layout_height="match_parent"
+            android:orientation="vertical" android:visibility="visible">
+
+            <!-- Fixed header -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:paddingStart="20dp" android:paddingEnd="20dp"
+                android:paddingTop="52dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Buscar"
+                        android:textColor="@color/text_primary" android:textSize="34sp"
+                        android:textStyle="bold" android:letterSpacing="-0.02"/>
+                    <ImageView android:id="@+id/btnThemeToggle"
+                        android:layout_width="40dp" android:layout_height="40dp" android:padding="8dp"
+                        android:src="@drawable/ic_theme_toggle" android:tint="@color/text_secondary"
+                        android:background="?attr/selectableItemBackgroundBorderless"/>
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
+                    android:layout_marginTop="20dp" android:background="@drawable/bg_search_field"
+                    android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp"
+                        android:src="@drawable/ic_search"/>
+                    <EditText android:id="@+id/inputSearch"
+                        android:layout_width="0dp" android:layout_height="match_parent"
+                        android:layout_weight="1" android:background="@null"
+                        android:layout_marginStart="12dp"
+                        android:hint="Canción, artista o enlace de YouTube"
+                        android:textColorHint="@color/text_muted" android:textColor="@color/text_primary"
+                        android:textSize="16sp" android:singleLine="true" android:imeOptions="actionSearch"/>
+                    <ImageView android:id="@+id/btnPaste"
+                        android:layout_width="36dp" android:layout_height="36dp" android:padding="8dp"
+                        android:src="@drawable/ic_paste"
+                        android:background="?attr/selectableItemBackgroundBorderless"/>
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:gravity="center_vertical|end">
+                    <TextView android:id="@+id/txtSearchStatus"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/text_muted" android:textSize="12sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Dynamic content area -->
+            <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"
+                android:layout_weight="1" android:layout_marginTop="8dp">
+
+                <!-- Rich Discovery Container (Recent searches, recent plays, top library) -->
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/containerSearchDiscovery"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingBottom="130dp"
+                    android:scrollbars="none"
+                    android:visibility="visible">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingTop="12dp">
+
+                        <!-- Section 1: Búsquedas Recientes -->
+                        <LinearLayout
+                            android:id="@+id/sectionRecentQueries"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="Búsquedas recientes"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="17sp"
+                                    android:textStyle="bold"
+                                    android:letterSpacing="-0.01"/>
+
+                                <TextView
+                                    android:id="@+id/btnClearSearchHistory"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:padding="6dp"
+                                    android:text="Borrar"
+                                    android:textColor="@color/accent"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:background="?attr/selectableItemBackgroundBorderless"/>
+                            </LinearLayout>
+
+                            <HorizontalScrollView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:scrollbars="none">
+
+                                <LinearLayout
+                                    android:id="@+id/layoutRecentChips"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"/>
+                            </HorizontalScrollView>
+                        </LinearLayout>
+
+                        <!-- Section 2: Reproducciones Recientes -->
+                        <LinearLayout
+                            android:id="@+id/sectionRecentPlays"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="20dp"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Escuchadas recientemente"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold"
+                                android:letterSpacing="-0.01"/>
+
+                            <HorizontalScrollView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:scrollbars="none">
+
+                                <LinearLayout
+                                    android:id="@+id/layoutRecentPlaysCards"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"/>
+                            </HorizontalScrollView>
+                        </LinearLayout>
+
+                        <!-- Section 3: Más Escuchadas / Top Biblioteca -->
+                        <LinearLayout
+                            android:id="@+id/sectionTopLibrary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="24dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Más escuchadas en tu biblioteca"
+                                android:textColor="@color/text_primary"
+                                android:textSize="17sp"
+                                android:textStyle="bold"
+                                android:letterSpacing="-0.01"/>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Tus canciones más reproducidas"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp"/>
+
+                            <LinearLayout
+                                android:id="@+id/layoutTopLibraryList"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:orientation="vertical"/>
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </androidx.core.widget.NestedScrollView>
+
+                <!-- Fallback hint (hidden by default) -->
+                <TextView android:id="@+id/txtSearchHint"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_gravity="center" android:text="Busca una canción o pega un enlace"
+                    android:textColor="@color/text_muted" android:textSize="14sp"
+                    android:visibility="gone"/>
+
+                <!-- Loading spinner -->
+                <ProgressBar android:id="@+id/searchLoading"
+                    android:layout_width="36dp" android:layout_height="36dp"
+                    android:layout_gravity="center" android:visibility="gone"/>
+
+                <!-- Search results -->
+                <androidx.recyclerview.widget.RecyclerView android:id="@+id/recyclerSearchResults"
+                    android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:clipToPadding="false" android:paddingBottom="130dp"
+                    android:scrollbars="none" android:visibility="gone"/>
+
+                <!-- Download progress card -->
+                <LinearLayout android:id="@+id/cardProgress"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_gravity="bottom" android:orientation="vertical"
+                    android:padding="18dp" android:layout_marginStart="20dp"
+                    android:layout_marginEnd="20dp" android:layout_marginBottom="16dp"
+                    android:background="@drawable/bg_card" android:visibility="gone">
+                    <TextView android:id="@+id/txtStatus"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary" android:textSize="15sp"
+                        android:textStyle="bold"/>
+                    <ProgressBar android:id="@+id/progressBar"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent" android:layout_height="4dp"
+                        android:layout_marginTop="12dp" android:progress="0" android:max="100"/>
+                    <TextView android:id="@+id/txtEta"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp" android:textColor="@color/text_muted"
+                        android:textSize="13sp"/>
+                </LinearLayout>
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- ═══ TAB: MI MÚSICA ═══ -->
+        <LinearLayout android:id="@+id/tabLibrary"
+            android:layout_width="match_parent" android:layout_height="match_parent"
+            android:orientation="vertical" android:visibility="gone">
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:paddingStart="20dp" android:paddingEnd="20dp"
+                android:paddingTop="52dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center_vertical">
+                    <ImageView android:id="@+id/btnBackLibrary"
+                        android:layout_width="36dp" android:layout_height="36dp" android:padding="6dp"
+                        android:src="@drawable/ic_arrow_back" android:tint="@color/text_primary"
+                        android:visibility="gone" android:background="?attr/selectableItemBackgroundBorderless"/>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:id="@+id/txtLibraryTitle"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Mi Música"
+                            android:textColor="@color/text_primary" android:textSize="32sp"
+                            android:textStyle="bold" android:letterSpacing="-0.02"/>
+                        <TextView android:id="@+id/txtSongCount"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="0 canciones" android:textColor="@color/text_secondary"
+                            android:textSize="13sp"/>
+                    </LinearLayout>
+                    <ImageView android:id="@+id/btnShuffleAll"
+                        android:layout_width="40dp" android:layout_height="40dp" android:padding="8dp"
+                        android:src="@drawable/ic_shuffle" android:tint="@color/accent"
+                        android:background="?attr/selectableItemBackgroundBorderless"/>
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="44dp"
+                    android:layout_marginTop="16dp" android:background="@drawable/bg_search_field"
+                    android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="14dp">
+                    <ImageView android:layout_width="18dp" android:layout_height="18dp"
+                        android:src="@drawable/ic_search"/>
+                    <EditText android:id="@+id/inputSearchLibrary"
+                        android:layout_width="0dp" android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@null" android:layout_marginStart="10dp"
+                        android:hint="Filtrar canciones, artistas, carpetas..." android:textColorHint="@color/text_muted"
+                        android:textColor="@color/text_primary" android:textSize="15sp"
+                        android:singleLine="true"/>
+                    <ImageView android:id="@+id/btnClearLibraryFilter"
+                        android:layout_width="28dp" android:layout_height="28dp"
+                        android:padding="6dp" android:src="@drawable/ic_close"
+                        android:tint="@color/text_secondary"
+                        android:visibility="gone"
+                        android:background="?attr/selectableItemBackgroundBorderless"/>
+                </LinearLayout>
+
+                <!-- Library Sort / Filter Chips Row -->
+                <HorizontalScrollView
+                    android:id="@+id/scrollLibraryFilters"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView android:id="@+id/chipFilterAll"
+                            android:layout_width="wrap_content" android:layout_height="30dp"
+                            android:gravity="center" android:paddingStart="14dp" android:paddingEnd="14dp"
+                            android:background="@drawable/bg_chip_active" android:text="Todas"
+                            android:textColor="@color/chip_active_text" android:textSize="12sp"
+                            android:textStyle="bold"/>
+
+                        <TextView android:id="@+id/chipFilterFavorites"
+                            android:layout_width="wrap_content" android:layout_height="30dp"
+                            android:gravity="center" android:layout_marginStart="6dp"
+                            android:paddingStart="14dp" android:paddingEnd="14dp"
+                            android:background="@drawable/bg_chip_inactive" android:text="❤️ Favoritas"
+                            android:textColor="@color/text_secondary" android:textSize="12sp"/>
+
+                        <TextView android:id="@+id/chipFilterRecent"
+                            android:layout_width="wrap_content" android:layout_height="30dp"
+                            android:gravity="center" android:layout_marginStart="6dp"
+                            android:paddingStart="14dp" android:paddingEnd="14dp"
+                            android:background="@drawable/bg_chip_inactive" android:text="Recientes"
+                            android:textColor="@color/text_secondary" android:textSize="12sp"/>
+
+                        <TextView android:id="@+id/chipFilterAZ"
+                            android:layout_width="wrap_content" android:layout_height="30dp"
+                            android:gravity="center" android:layout_marginStart="6dp"
+                            android:paddingStart="14dp" android:paddingEnd="14dp"
+                            android:background="@drawable/bg_chip_inactive" android:text="A - Z"
+                            android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    </LinearLayout>
+                </HorizontalScrollView>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp" android:gravity="center_vertical">
+                    <TextView android:id="@+id/chipSongs"
+                        android:layout_width="wrap_content" android:layout_height="34dp"
+                        android:gravity="center" android:paddingStart="18dp" android:paddingEnd="18dp"
+                        android:background="@drawable/bg_chip_active" android:text="Canciones"
+                        android:textColor="@color/chip_active_text" android:textSize="13sp"
+                        android:textStyle="bold"/>
+                    <TextView android:id="@+id/chipFolders"
+                        android:layout_width="wrap_content" android:layout_height="34dp"
+                        android:gravity="center" android:layout_marginStart="8dp"
+                        android:paddingStart="18dp" android:paddingEnd="18dp"
+                        android:background="@drawable/bg_chip_inactive" android:text="Carpetas"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"/>
+                    <TextView android:id="@+id/chipPlaylists"
+                        android:layout_width="wrap_content" android:layout_height="34dp"
+                        android:gravity="center" android:layout_marginStart="8dp"
+                        android:paddingStart="18dp" android:paddingEnd="18dp"
+                        android:background="@drawable/bg_chip_inactive" android:text="Playlists"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/recyclerLibrary"
+                android:layout_width="match_parent" android:layout_height="0dp"
+                android:layout_weight="1" android:layout_marginTop="8dp"
+                android:clipToPadding="false" android:paddingStart="8dp" android:paddingEnd="8dp"
+                android:paddingBottom="130dp" android:scrollbars="none"/>
+
+            <FrameLayout android:id="@+id/fabNewPlaylist"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:visibility="gone" android:paddingStart="20dp" android:paddingEnd="20dp"
+                android:paddingBottom="12dp" android:layout_marginBottom="96dp">
+                <FrameLayout android:id="@+id/btnNewPlaylist"
+                    android:layout_width="match_parent" android:layout_height="48dp"
+                    android:background="@drawable/bg_button_secondary">
+                    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_gravity="center" android:gravity="center_vertical">
+                        <ImageView android:layout_width="18dp" android:layout_height="18dp"
+                            android:src="@drawable/ic_add" android:tint="@color/accent"/>
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp" android:text="Nueva Playlist"
+                            android:textColor="@color/accent" android:textSize="14sp" android:textStyle="bold"/>
+                    </LinearLayout>
+                </FrameLayout>
+            </FrameLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- BOTTOM: Mini Player + Floating Island Nav -->
+    <LinearLayout android:id="@+id/bottomBarArea"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true" android:orientation="vertical"
+        android:clickable="false" android:focusable="false"
+        android:background="@android:color/transparent">
+
+        <LinearLayout android:id="@+id/miniPlayerLayout"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginStart="16dp" android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp" android:orientation="vertical"
+            android:background="@drawable/bg_mini_player" android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="58dp"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="12dp" android:paddingEnd="8dp">
+                <androidx.cardview.widget.CardView
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    xmlns:app="http://schemas.android.com/apk/res-auto"
+                    app:cardCornerRadius="10dp"
+                    app:cardElevation="2dp"
+                    app:cardBackgroundColor="@color/bg_elevated">
+                    <ImageView
+                        android:id="@+id/imgMiniCover"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:src="@drawable/bg_thumbnail"/>
+                </androidx.cardview.widget.CardView>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:layout_marginStart="12dp"
+                    android:layout_marginEnd="8dp" android:orientation="vertical">
+                    <TextView android:id="@+id/txtMiniTitle"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary" android:textSize="14sp"
+                        android:textStyle="bold" android:singleLine="true" android:ellipsize="marquee"/>
+                    <TextView android:id="@+id/txtMiniArtist"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary" android:textSize="12sp"
+                        android:singleLine="true"/>
+                </LinearLayout>
+                <ImageView android:id="@+id/btnMiniPlayPause"
+                    android:layout_width="42dp" android:layout_height="42dp" android:padding="9dp"
+                    android:src="@drawable/ic_play_arrow" android:tint="@color/text_primary"
+                    android:background="?attr/selectableItemBackgroundBorderless"/>
+                <ImageView android:id="@+id/btnMiniNext"
+                    android:layout_width="38dp" android:layout_height="38dp" android:padding="8dp"
+                    android:src="@drawable/ic_skip_next" android:tint="@color/text_secondary"
+                    android:background="?attr/selectableItemBackgroundBorderless"/>
+            </LinearLayout>
+            <ProgressBar android:id="@+id/miniProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent" android:layout_height="2dp"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:progress="0" android:max="100"/>
+        </LinearLayout>
+
+        <LinearLayout android:id="@+id/navIsland"
+            android:layout_width="200dp" android:layout_height="56dp"
+            android:layout_gravity="center_horizontal" android:layout_marginBottom="20dp"
+            android:layout_marginTop="4dp" android:background="@drawable/bg_nav_island"
+            android:gravity="center" android:orientation="horizontal">
+            <LinearLayout android:id="@+id/navTabSearch"
+                android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+                android:layout_marginStart="8dp" android:layout_marginEnd="4dp"
+                android:gravity="center" android:background="@drawable/bg_nav_tab_indicator">
+                <ImageView android:id="@+id/navIconSearch"
+                    android:layout_width="20dp" android:layout_height="20dp"
+                    android:src="@drawable/ic_search" android:tint="@color/text_primary"/>
+                <TextView android:id="@+id/navLabelSearch"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp" android:text="Buscar"
+                    android:textColor="@color/text_primary" android:textSize="12sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/navTabLibrary"
+                android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+                android:layout_marginStart="4dp" android:layout_marginEnd="8dp"
+                android:gravity="center" android:background="@null">
+                <ImageView android:id="@+id/navIconLibrary"
+                    android:layout_width="20dp" android:layout_height="20dp"
+                    android:src="@drawable/ic_music_library" android:tint="@color/text_muted"/>
+                <TextView android:id="@+id/navLabelLibrary"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp" android:text="Música"
+                    android:textColor="@color/text_muted" android:textSize="12sp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+    <!-- Background Host for Online Video Player WebView (keeps audio/video active in background) -->
+    <FrameLayout
+        android:id="@+id/globalWebVideoContainer"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="visible"
+        android:alpha="0.01"/>
+</RelativeLayout>

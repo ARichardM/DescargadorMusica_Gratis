@@ -10,6 +10,35 @@ def candidate(title, channel="", duration=None):
 
 
 class MatchingTests(unittest.TestCase):
+    def test_bad_best_result_stays_visible_but_is_not_automatically_selected(self):
+        for query, title, artist, result in (
+                ('Dazy', 'Dazy', '', candidate('daisy bell')),
+                ('Daft Punk - Get Lucky', 'Get Lucky', 'Daft Punk', candidate('Daft Punk - One More Time', 'Daft Punk')),
+                ('Kygo - Happy Now', 'Happy Now', 'Kygo', candidate('Zedd - Happy Now', 'Zedd')),
+                ('Alok - Jungle', 'Jungle', 'Alok', candidate('Alok WE2 | Tomorrowland 2026', 'Alok'))):
+            with self.subTest(query=query):
+                index, match = best_candidate(query, [result], title=title, artist=artist)
+                self.assertEqual(index, 0)
+                self.assertFalse(match.auto_select)
+                self.assertTrue(match.review_reason)
+
+    def test_automatic_selection_checks_version_and_duration_even_for_exact_title(self):
+        for result in (candidate('Hello (Live)', 'Adele', 295), candidate('Hello', 'Adele', 90)):
+            match = best_candidate('Adele - Hello', [result], title='Hello', artist='Adele', duration='4:55')[1]
+            self.assertFalse(match.auto_select)
+            self.assertTrue(match.review_reason)
+        match = best_candidate('Adele - Hello Remix', [candidate('Adele - Hello', 'Adele')],
+                               title='Hello Remix', artist='Adele')[1]
+        self.assertFalse(match.auto_select)
+
+    def test_reordered_collaboration_and_minor_typo_can_be_automatically_selected(self):
+        match = best_candidate('Dazy & Nicky Youre - Sunroof', [candidate('Nicky Youre, dazy - Sunroof (Official Video)',
+                              'Nicky Youre', 175)], title='Sunroof', artist='Dazy & Nicky Youre', duration='2:55')[1]
+        self.assertTrue(match.auto_select)
+        self.assertTrue(match.exact)
+        self.assertTrue(best_candidate('Gunjo Sanka', [candidate('Gunjou Sanka')])[1].auto_select)
+        self.assertFalse(best_candidate('Hello', [{}])[1].auto_select)
+
     def test_exact_cyberpunk_with_unicode_quotes_wins_even_if_not_first(self):
         query = 'Cyberpunk: Edgerunners | “I Really Want to Stay At Your House” by Rosa Walton | Music Video'
         options = [candidate('ROSA WALTON - I REALLY WANT TO STAY AT YOUR HOUSE (LYRIC)'),

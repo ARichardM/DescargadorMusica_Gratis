@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#000000</color>
+    <color name="bg_card">#1C1C1E</color>
+    <color name="bg_elevated">#2C2C2E</color>
+    <color name="bg_nav_island">#E6161618</color>
+    <color name="accent">#0A84FF</color>
+    <color name="now_playing">#0A84FF</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#8E8E93</color>
+    <color name="text_muted">#8E8E93</color>
+    <color name="border">#38383A</color>
+    <color name="divider">#1D1D1F</color>
+    <color name="chip_active_bg">#FFFFFF</color>
+    <color name="chip_active_text">#000000</color>
+    <color name="play_circle_bg">#FFFFFF</color>
+    <color name="play_circle_icon">#000000</color>
+    <color name="heart_red">#FF375F</color>
+    <color name="success">#30D158</color>
+    <color name="nav_indicator">#25FFFFFF</color>
+    <color name="mini_player_bg">#F0161618</color>
+    <color name="mini_player_border">#25FFFFFF</color>
+    <color name="search_bg">#1C1C1E</color>
+
+    <!-- Compat aliases -->
+    <color name="border_subtle">#38383A</color>
+    <color name="accent_primary">#0A84FF</color>
+    <color name="bg_card_elevated">#2C2C2E</color>
+    <color name="bg_dark">#000000</color>
+</resources>

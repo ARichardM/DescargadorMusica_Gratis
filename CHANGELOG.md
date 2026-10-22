@@ -2,6 +2,25 @@
 
 ## Sin publicar
 
+### MusicBox Android 2.1.1
+
+- Se incorpora el proyecto Android completo, con Gradle Wrapper y APK instalable.
+- Reproducción nativa asíncrona de audio y video mediante MediaPlayer y yt-dlp,
+  con controles compartidos entre el reproductor completo y el compacto.
+- Cambio entre portada/audio y video conservando la posición y proporción del video.
+- Play compacto visible sobre las portadas, favoritos y agregar a playlists en búsqueda.
+- Playlists con canciones online, switch de descarga automática y cola de descargas.
+- Indicador de canciones descargadas, resultados planos y caché de búsquedas repetidas.
+- Biblioteca con filtros, carpetas, historial y controles de reproducción en segundo plano.
+- Configuración de descarga MP4 y mensajes de carga/error en la reproducción.
+
+### Escritorio
+
+- Las listas copiadas agrupan colaboraciones con varios artistas, incluso con
+  separadores y saltos de línea, sin buscar nombres o álbumes como canciones.
+- Los bloques ambiguos se conservan en una sola fila sin marcar, con motivo y texto original.
+- Las coincidencias débiles o con diferencias de artista, versión o duración quedan
+  pendientes de revisión manual; las alternativas siguen visibles en el informe.
 - Escucha rápida de solo audio a la derecha de cada coincidencia, con play/pausa,
   barra para buscar un instante y tiempos; se conserva el reproductor de video.
 - Audio en un trabajador independiente con búfer acotado en memoria y controles

@@ -10,6 +10,7 @@ import canciones
 import descargador_gui as backend
 from importar_canciones import ImportSongsDialog
 from tabla_canciones import SongEntry
+from coincidencias import seconds
 
 
 class SongEntryTests(unittest.TestCase):
@@ -46,9 +47,58 @@ class TableWorkflowTests(unittest.TestCase):
         return self.dialog.songs.entries()
 
     def candidate_event(self, index=0, candidates=None):
+        entry = self.dialog.songs.items[self.dialog.search_row_ids[index]]
         return dict(index=index, query=self.dialog.searched_queries[index], candidates=candidates if candidates is not None else [
-            dict(title="Versión oficial", channel="Artista", duration=240,
+            dict(title=entry.title, channel=entry.artist, duration=seconds(entry.duration) or 240,
                  url=f"https://www.youtube.com/watch?v=version{index}")], total=len(self.dialog.searched_queries))
+
+    def test_ambiguous_import_is_one_unchecked_row_with_original_and_reason_in_report(self):
+        body = "Tema dudoso\nArtista\nDisco\nDato desconocido"
+        rows = self.populate("Hello\nAdele\n21\n4:55\n\n" + body + "\n3:00")
+        self.assertEqual(len(rows), 2)
+        item, entry = rows[1]
+        self.assertFalse(entry.checked)
+        self.assertEqual(entry.state, "Revisar bloque")
+        report = self.dialog.report_text.get("1.0", "end")
+        self.assertIn("1 bloques ambiguos", report)
+        self.assertIn(body, report)
+        with patch.object(self.dialog, "start_job") as start:
+            self.dialog.start_search()
+        self.assertEqual(start.call_args.args[0]['queries'], ['Adele - Hello'])
+        self.dialog.songs.edit_value(item, "artist", "Artista corregido")
+        self.assertFalse(entry.review_reason)
+        self.assertEqual(entry.raw_text, body)
+
+    def test_weak_result_is_pending_with_reason_but_can_be_chosen_manually(self):
+        self.populate("Kygo - Happy Now")
+        with patch.object(self.dialog, "start_job"):
+            self.dialog.start_search()
+        self.dialog.add_candidates(self.candidate_event(0, [dict(title="Zedd - Happy Now", channel="Zedd",
+                                                               duration=210, url="otra-cancion")]))
+        self.assertFalse(self.dialog.selected_candidates)
+        self.assertEqual(self.dialog.pending_indices(), [0])
+        item = next(iter(self.dialog.candidates))
+        self.assertEqual(self.dialog.results.set(item, "chosen"), "Revisar · sin marcar")
+        self.assertEqual(self.dialog.songs.entries()[0][1].state, "Revisar coincidencia")
+        self.dialog.task = "search"
+        self.dialog.handle_event(dict(event="job_done", cancelled=False))
+        self.assertIn("1 pendientes", self.dialog.status_var.get())
+        self.assertIn("artista", self.dialog.report_text.get("1.0", "end"))
+        self.assertEqual(self.dialog.tabs.select(), str(self.dialog.report_tab))
+        self.dialog.results.selection_set(item)
+        self.dialog.choose_result()
+        self.dialog.add_selected()
+        self.assertEqual(self.received, ["otra-cancion"])
+
+    def test_manually_checked_ambiguous_block_cannot_be_auto_selected(self):
+        rows = self.populate("Hello\nAdele\n21\n4:55\n\nTema\nArtista\nDisco\nExtra\n3:00")
+        rows[0][1].checked = False
+        rows[1][1].checked = True
+        with patch.object(self.dialog, "start_job"):
+            self.dialog.start_search()
+        self.dialog.add_candidates(self.candidate_event())
+        self.assertFalse(self.dialog.selected_candidates)
+        self.assertIn("separar", self.dialog.report_text.get("1.0", "end"))
 
     def test_ocr_builds_table_and_keeps_raw_text_separate(self):
         dialog = self.dialog
@@ -166,6 +216,8 @@ class TableWorkflowTests(unittest.TestCase):
         self.assertEqual(len(self.dialog.selected_candidates), 1)
         self.assertEqual(rows[0][1].state, "Elegida")
         self.assertEqual(rows[1][1].state, "Elegida")
+        self.assertIn("3 filas marcadas → 2 consultas únicas; 1 repeticiones agrupadas",
+                      self.dialog.report_text.get("1.0", "end"))
 
     def test_cleanup_of_export_preserves_fields_and_duration(self):
         self.populate("Gunjo Sanka\nEve\nKaizin\n4:37\nOver\nLittle Glee Monster\nJuice\n3:58")

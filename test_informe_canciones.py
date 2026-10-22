@@ -172,7 +172,7 @@ class ReportDialogTests(unittest.TestCase):
         self.start(1)
         original = self.dialog.searched_queries[0]
         self.dialog.handle_event(dict(event="search_result", index=0, query=original, total=1,
-            candidates=[dict(title="Versión encontrada", channel="Artista", duration=200, url="found")],
+            candidates=[dict(title="Canción 0", channel="Artista", duration=200, url="found")],
             search_attempts=[dict(query=original, limit=3, received=0, skipped=0),
                              dict(query="Artista Canción 0", limit=3, received=3, skipped=0)],
             matched_query="Artista Canción 0"))
@@ -258,6 +258,9 @@ class ReportDialogTests(unittest.TestCase):
             self.dialog.handle_event(dict(event="search_result", index=index, query=self.dialog.searched_queries[index],
                 candidates=[dict(title=f"Video {url_index}", channel="Artista", duration=240,
                                  url=f"https://www.youtube.com/watch?v=video{url_index}")], total=129))
+            # El usuario puede confirmar manualmente una propuesta que no coincide.
+            item = next(item for item, (query_index, _) in self.dialog.candidates.items() if query_index == index)
+            self.dialog.select_candidate(item)
         self.done()
         self.dialog.on_add = Mock(return_value=True)
         with patch("importar_canciones.messagebox.askyesno", return_value=False) as ask:

@@ -43,3 +43,6 @@ informe_canciones*.txt
 # Historial privado de descargas y accesos directos de esta instalación.
 datos/
 *.lnk
+
+# Transcripción local de la sesión; los cambios públicos están en CHANGELOG.md.
+/cambios_musica_22_10_2026.txt

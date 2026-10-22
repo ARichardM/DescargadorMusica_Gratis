@@ -20,6 +20,8 @@ class SongEntry:
     duration: str = ""
     album: str = ""
     uploader: str = ""
+    review_reason: str = ""
+    raw_text: str = ""
 
     @classmethod
     def from_query(cls, query, source="Texto"):
@@ -51,6 +53,8 @@ class SongEntry:
             self.state = "Canal disponible"
         if self.title.endswith(("…", "...")):
             self.state = "Revisar título"
+        if self.review_reason:
+            self.state = "Revisar bloque"
 
 
 class SongTable(ttk.Frame):
@@ -145,11 +149,15 @@ class SongTable(ttk.Frame):
         entries = []
         for record in records:
             entry = (SongEntry(record.artist, record.title, "Texto pegado", duration=record.duration,
-                               album=record.album, uploader=record.uploader)
+                               album=record.album, uploader=record.uploader,
+                               checked=not bool(record.review_reason), review_reason=record.review_reason,
+                               raw_text=record.raw_text)
                      if record.structured else SongEntry.from_query(record.title, "Texto pegado"))
             matches = previous[entry.query.casefold()]
             if matches:
-                entry.checked = matches.popleft().checked
+                previous_entry = matches.popleft()
+                if not entry.review_reason:
+                    entry.checked = previous_entry.checked
             entries.append(entry)
         self.set_entries(entries)
 
@@ -276,6 +284,7 @@ class SongTable(ttk.Frame):
         if query and any(other != item and row.query.casefold() == query.casefold() for other, row in self.entries()):
             raise ValueError("Esa canción ya está en otra fila.")
         entry.artist, entry.title = artist, title
+        entry.review_reason = ""
         entry.reset_state()
         self.changed()
 

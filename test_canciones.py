@@ -160,8 +160,8 @@ class DialogTests(unittest.TestCase):
         dialog.names.edit_modified(False)
         dialog.searched_queries = ["Adele - Hello"]
         dialog.add_candidates(dict(index=0, query="Adele - Hello", candidates=[
-            dict(title="Official", channel="Adele", duration=295, url="https://www.youtube.com/watch?v=official"),
-            dict(title="Live", channel="Adele", duration=300, url="https://www.youtube.com/watch?v=live")]))
+            dict(title="Adele - Hello (Official)", channel="Adele", duration=295, url="https://www.youtube.com/watch?v=official"),
+            dict(title="Adele - Hello Live", channel="Adele", duration=300, url="https://www.youtube.com/watch?v=live")]))
         first, second = list(dialog.candidates)
         self.assertEqual(dialog.selected_candidates[0], first)
         self.assertIn("Auto", dialog.results.set(first, "chosen"))
@@ -217,7 +217,7 @@ class DialogTests(unittest.TestCase):
         self.dialog.names.edit_modified(False)
         self.dialog.searched_queries = ["Adele - Hello"]
         self.dialog.add_candidates(dict(index=0, query="Adele - Hello", candidates=[
-            dict(title="Official", channel="Adele", duration=295,
+            dict(title="Adele - Hello (Official)", channel="Adele", duration=295,
                  url="https://www.youtube.com/watch?v=official")]))
         self.assertEqual(len(self.dialog.selected_candidates), 1)
         self.dialog.add_selected()

@@ -120,6 +120,10 @@ Pulsa **Imágenes y nombres…** en la parte superior de la ventana.
    fila por entrada. Las duraciones van en su propia columna y los álbumes no se
    cuentan como canciones. Los títulos bilingües permanecen juntos. Se conservan
    los registros repetidos; una búsqueda idéntica se consulta una sola vez.
+   Las colaboraciones separadas por comas o `&` se agrupan incluso si los nombres
+   ocupan varias líneas. Los bloques que no se puedan interpretar se conservan
+   completos en una sola fila **Revisar bloque**, sin marcar. Su texto original y
+   el motivo aparecen en **Informe y pendientes**; corrige la fila antes de buscarla.
    Quita encabezados y otras líneas que no sean canciones. **Limpiar texto de lista**
    organiza texto ya pegado y elimina duraciones; **Ctrl + Z** deshace esa limpieza.
    Las líneas ambiguas y los títulos cortados necesitan revisión. Puedes escribir o pegar
@@ -154,9 +158,10 @@ Pulsa **Imágenes y nombres…** en la parte superior de la ventana.
    Una búsqueda automática vacía no confirma que la canción no exista en YouTube;
    la web puede resolver el mismo texto de otra manera. Los fallos de conexión o de
    la herramienta se registran como errores.
-   Se marca automáticamente la coincidencia exacta del nombre o,
-   si no existe, la más parecida, usando también artista y duración cuando están
-   disponibles. La columna **Elección** indica **Auto · exacta** o **Auto · similar**;
+   Solo se marca automáticamente una coincidencia suficientemente parecida y
+   compatible con el artista, la versión y la duración disponibles. Si no se
+   puede verificar, queda **Revisar · sin marcar**, con el motivo en el informe.
+   La columna **Elección** indica **Auto · exacta** o **Auto · similar** cuando se elige;
    es una propuesta, no una garantía de identificar la grabación. Las demás opciones
    siguen visibles. Haz doble clic para cambiar la elección; otro doble clic en el
    mismo resultado la quita. A la derecha de cada resultado, **Escucha rápida · Audio**

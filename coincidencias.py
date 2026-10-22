@@ -60,6 +60,8 @@ class Match:
     exact: bool
     score: float
     full_exact: bool = False
+    auto_select: bool = False
+    review_reason: str = ""
 
 
 def score_candidate(query, candidate, *, title="", artist="", duration=""):
@@ -70,12 +72,15 @@ def score_candidate(query, candidate, *, title="", artist="", duration=""):
     found_title = content(candidate.get("title"))
     wanted_artist = normalize(artist)
     channel = normalize(candidate.get("channel"))
+    artist_parts = [normalize(part) for part in re.split(r"\s*(?:[,，、&]|\band\b|\by\b|\bfeat\.?\s|\bft\.?\s)\s*",
+                                                       str(artist or ""), flags=re.IGNORECASE) if normalize(part)]
     # Permite tanto «artista - título» como «título - artista».
-    if wanted_artist:
-        found_title = " ".join(re.sub(r"(?<!\w)" + re.escape(wanted_artist) + r"(?!\w)",
+    for part in artist_parts:
+        found_title = " ".join(re.sub(r"(?<!\w)" + re.escape(part) + r"(?!\w)",
                                      " ", found_title).split())
-    artist_match = bool(wanted_artist and re.search(
-        r"(?<!\w)" + re.escape(wanted_artist) + r"(?!\w)", found_full + " " + channel))
+    artist_match = bool(artist_parts and all(re.search(
+        r"(?<!\w)" + re.escape(part) + r"(?!\w)", found_full + " " + channel) for part in artist_parts))
+    title_score = similarity(wanted_title, found_title)
     name_score = max(similarity(wanted_title, found_title),
                      similarity(content(query), content(candidate.get("title"))))
     score = name_score * .80
@@ -90,7 +95,21 @@ def score_candidate(query, candidate, *, title="", artist="", duration=""):
             score -= .18
     full_exact = bool(wanted_full and wanted_full == found_full)
     title_exact = bool(wanted_title and wanted_title == found_title)
-    return Match(full_exact or (title_exact and (not wanted_artist or artist_match)), score, full_exact)
+    # El mejor resultado de una búsqueda puede seguir siendo otra canción.
+    # Mantenerlo visible no implica autorizar una elección automática.
+    reason = ""
+    if not wanted_title or not found_full:
+        reason = "Faltan datos del título para verificar la coincidencia."
+    elif wanted_artist and not artist_match and not full_exact:
+        reason = "No se pudo confirmar el artista de la canción."
+    elif not full_exact and title_score < (.82 if wanted_artist else .86):
+        reason = "El título no coincide lo suficiente; la mejor alternativa podría ser otra canción."
+    elif any(bool(re.search(variant, wanted_full)) != bool(re.search(variant, found_full)) for variant in VERSIONS):
+        reason = "La versión difiere: directo, cover, remix, velocidad u otro arreglo."
+    elif wanted_seconds and found_seconds and abs(wanted_seconds - found_seconds) > max(25, wanted_seconds * .18):
+        reason = "La duración difiere demasiado de la canción de la lista."
+    return Match(full_exact or (title_exact and (not wanted_artist or artist_match)), score, full_exact,
+                 not bool(reason), reason)
 
 
 def best_candidate(query, candidates, **metadata):

@@ -9,8 +9,73 @@ from importar_texto import parse_exported_playlist
 
 FIXTURE = Path(__file__).parent / "tests" / "fixtures" / "lista_copiada.txt"
 
+# Los once bloques de colaboraciones que antes dividían la lista driving.
+COLLABORATIONS = [
+    ("Sunroof", "Dazy\n&\nNicky Youre", "Dazy & Nicky Youre", "", "2:55"),
+    ("Crystal Skies (Sped Up)", "VXLLAIN\n,\niGRES\n&\nENXK", "VXLLAIN, iGRES & ENXK", "Crystal Skies", "2:34"),
+    ("Get Lucky", "Daft Punk\n,\nPharrell Williams\n&\nNile Rodgers", "Daft Punk, Pharrell Williams & Nile Rodgers", "2010s Hits", "4:09"),
+    ("Get Lucky", "Daft Punk\n,\nPharrell Williams\n&\nNile Rodgers", "Daft Punk, Pharrell Williams & Nile Rodgers", "Get Lucky", "4:09"),
+    ("Sunflower", "Post Malone\n&\nSwae Lee", "Post Malone & Swae Lee", "Spider-Man", "2:39"),
+    ("Finesse (Remix)", "Bruno Mars\n&\nCardi B", "Bruno Mars & Cardi B", "Finesse (Remix)", "3:38"),
+    ("Happier", "Marshmello\n&\nBastille", "Marshmello & Bastille", "Happier", "3:35"),
+    ("Under Control (feat. Hurts)", "Calvin Harris\n&\nAlesso", "Calvin Harris & Alesso", "Motion", "3:05"),
+    ("Happy Now", "Kygo\n&\nSandro Cavazza", "Kygo & Sandro Cavazza", "Happy Now", "3:32"),
+    ("Risin' to the Top (A Mike Maurro Mix)", "Keni Burke\n&\nMike Maurro", "Keni Burke & Mike Maurro", "The Mike Maurro Remix Vault", "8:50"),
+    ("Jungle", "Alok\n,\nThe Chainsmokers\n&\nMae Stephens", "Alok, The Chainsmokers & Mae Stephens", "Jungle", "2:56"),
+]
+
 
 class ExportedPlaylistTests(unittest.TestCase):
+    def test_collaborations_produce_one_row_with_artists_album_and_duration(self):
+        for title, body, artist, album, duration in COLLABORATIONS:
+            for separator in ("\n", "\n\n"):
+                with self.subTest(title=title, separator=separator):
+                    lines = [title, *body.splitlines(), *([album] if album else []), duration]
+                    parsed = parse_exported_playlist(separator.join(lines))
+                    self.assertEqual(len(parsed.songs), 1)
+                    song = parsed.songs[0]
+                    self.assertEqual((song.title, song.artist, song.album, song.duration), (title, artist, album, duration))
+                    self.assertFalse(song.review_reason)
+                    self.assertFalse(parsed.warnings)
+
+    def test_167_records_with_all_eleven_collaborations_do_not_expand(self):
+        blocks = [f"Canción {index}\nArtista {index}\nÁlbum {index}\n3:45" for index in range(156)]
+        for title, body, _, album, duration in COLLABORATIONS:
+            blocks.append("\n".join([title, body, *([album] if album else []), duration]))
+        parsed = parse_exported_playlist("\n\n".join(blocks))
+        self.assertEqual((len(parsed.songs), parsed.timed_blocks), (167, 167))
+        self.assertFalse(parsed.warnings)
+        self.assertTrue(all(song.structured for song in parsed.songs))
+
+    def test_separators_attached_to_artist_names_and_non_latin_names(self):
+        for body, artist in (("Dazy &\nNicky Youre", "Dazy & Nicky Youre"),
+                             ("Dazy\n& Nicky Youre", "Dazy & Nicky Youre"),
+                             ("A,\nB\n&\nC", "A, B & C"),
+                             ("A\nfeat.\nB", "A feat. B"),
+                             ("宇多田ヒカル\n、\n椎名林檎", "宇多田ヒカル, 椎名林檎")):
+            with self.subTest(body=body):
+                song = parse_exported_playlist(f"Tema\n{body}\nDisco\n3:00").songs[0]
+                self.assertEqual(song.artist, artist)
+                self.assertEqual(song.album, "Disco")
+
+    def test_ambiguous_blocks_keep_original_once_instead_of_generating_queries(self):
+        for body in ("Tema\nArtista\nDisco\nDato desconocido", "Tema\nArtista\n\nDisco\nDato desconocido",
+                     "Tema\nArtista\n&", "Tema"):
+            with self.subTest(body=body):
+                parsed = parse_exported_playlist("Hello\nAdele\n21\n4:55\n\n" + body + "\n3:00")
+                self.assertEqual(len(parsed.songs), 2)
+                song = parsed.songs[-1]
+                self.assertTrue(song.review_reason)
+                self.assertEqual(song.duration, "3:00")
+                self.assertEqual(song.raw_text, "\n".join(line for line in body.splitlines() if line))
+                self.assertTrue(parsed.warnings)
+
+    def test_album_names_starting_with_joiner_words_are_not_artists(self):
+        for album in ("And Justice for All", "Y ahora", "Feat. The World"):
+            song = parse_exported_playlist(f"Tema\nArtista\n{album}\n3:00").songs[0]
+            self.assertEqual(song.artist, "Artista")
+            self.assertEqual(song.album, album)
+
     def test_actual_user_file_has_133_records_not_328(self):
         parsed = parse_exported_playlist(FIXTURE.read_text(encoding="utf-8"))
         self.assertIsNotNone(parsed)
@@ -93,10 +158,16 @@ class ExportedPlaylistTests(unittest.TestCase):
         parsed = parse_exported_playlist(text)
         self.assertEqual(len(parsed.songs), 1)
         self.assertEqual(parsed.songs[0].query, "Eve - Gunjo Sanka")
+        for body in ("Gunjo Sanka\n\nEve\nKaizin", "Gunjo Sanka\nEve\n\nKaizin"):
+            parsed = parse_exported_playlist(body + "\n4:37")
+            self.assertEqual(len(parsed.songs), 1)
+            self.assertEqual(parsed.songs[0].query, "Eve - Gunjo Sanka")
+            self.assertEqual(parsed.songs[0].album, "Kaizin")
 
     def test_regular_queries_and_time_named_song_are_not_misclassified(self):
         for text in ("Eve - Gunjo Sanka\nLONGMAN - spiral", "Jay-Z - 4:44\n4:44",
-                     "Adele - Hello\nEve - Gunjo Sanka\n4:44"):
+                     "Adele - Hello\nEve - Gunjo Sanka\n4:44",
+                     "spiral\n3:52\nLONGMAN·spiral\nGunjo Sanka\n4:37\nEve·Kaizin"):
             self.assertIsNone(parse_exported_playlist(text))
 
     def test_missing_last_duration_preserves_record_and_reports_it(self):

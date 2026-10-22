@@ -16,7 +16,20 @@ Versión base: **1.0.0**, etiqueta **v1.0**. Las mejoras posteriores se describe
 [CHANGELOG.md](CHANGELOG.md). Para instrucciones detalladas, consulta la
 [guía completa de uso](docs/GUIA_USO.md).
 
-## Qué puedes hacer
+## App Android: MusicBox
+
+[Descargar APK para Android](https://github.com/ARichardM/DescargadorMusica_Gratis/raw/refs/heads/main/Descargador-Movil.apk)
+
+Versión **2.1.1** para Android 7 o posterior (ARM/ARM64). Descarga el APK desde
+tu teléfono, ábrelo y permite la instalación desde tu navegador cuando Android
+lo solicite. Es una compilación de prueba firmada con clave de desarrollo, sin
+cuentas ni credenciales incluidas; se distribuye gratuitamente desde este repositorio.
+
+Incluye búsqueda, reproductor nativo de audio/video, biblioteca local, favoritos,
+playlists y descarga automática por playlist. El código y las instrucciones para
+compilar están en [android-app](android-app/README.md).
+
+## Funciones de escritorio
 
 - Descargar un video por enlace o una playlist completa/un rango.
 - Elegir MP3 de 128, 192, 256 o 320 kbps; MP4 hasta 1080p o la mejor opción disponible.
@@ -115,6 +128,13 @@ usa Internet y un búfer temporal. No se garantiza el acceso a todos los videos.
 3. Revisa artista/canal y título en **Tabla de canciones**; usa el filtro y las casillas.
 4. Busca las marcadas, escucha y revisa las elecciones automáticas.
 5. Consulta **Informe y pendientes** y añade las elecciones revisadas a la cola.
+
+Los artistas separados por comas o `&` se agrupan aunque estén en varias líneas.
+Un bloque ambiguo se conserva como una sola fila **sin marcar**, con su texto original
+en el informe. Las coincidencias débiles o con diferencias de artista, versión o
+duración **no se eligen automáticamente**: puedes revisarlas y elegir una manualmente.
+Las entradas repetidas se conservan en la tabla; las consultas y enlaces repetidos
+se deduplican al buscar y pasar a la cola, con el informe correspondiente.
 
 Límites por operación: **500 consultas**, **20 imágenes**, **40 megapíxeles en total**
 y hasta **25 megapíxeles por imagen**. Para detectar entradas ocultas/no disponibles,

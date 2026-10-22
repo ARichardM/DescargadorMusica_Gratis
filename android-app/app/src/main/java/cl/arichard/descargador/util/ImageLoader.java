@@ -1,0 +1,89 @@
+package cl.arichard.descargador.util;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.LruCache;
+import android.view.animation.AlphaAnimation;
+import android.widget.ImageView;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ImageLoader {
+    private static ImageLoader instance;
+    private final LruCache<String, Bitmap> memoryCache;
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private ImageLoader() {
+        int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
+        int cacheSize = Math.max(1024 * 4, maxMemory / 8);
+        memoryCache = new LruCache<String, Bitmap>(cacheSize) {
+            @Override
+            protected int sizeOf(String key, Bitmap bitmap) {
+                return bitmap.getByteCount() / 1024;
+            }
+        };
+    }
+
+    public static synchronized ImageLoader getInstance() {
+        if (instance == null) {
+            instance = new ImageLoader();
+        }
+        return instance;
+    }
+
+    public void load(String url, ImageView imageView) {
+        if (url == null || url.isEmpty() || imageView == null) return;
+
+        imageView.setTag(url);
+        Bitmap cached = memoryCache.get(url);
+        if (cached != null) {
+            imageView.setImageBitmap(cached);
+            return;
+        }
+
+        executor.execute(() -> {
+            Bitmap bitmap = downloadBitmap(url);
+            if (bitmap != null) {
+                memoryCache.put(url, bitmap);
+                mainHandler.post(() -> {
+                    if (url.equals(imageView.getTag())) {
+                        imageView.setImageBitmap(bitmap);
+                        AlphaAnimation fadeIn = new AlphaAnimation(0.2f, 1.0f);
+                        fadeIn.setDuration(220);
+                        imageView.startAnimation(fadeIn);
+                    }
+                });
+            }
+        });
+    }
+
+    private Bitmap downloadBitmap(String urlStr) {
+        InputStream is = null;
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
+            conn.setRequestProperty("Accept", "image/webp,image/apng,image/*,*/*;q=0.8");
+            conn.connect();
+            is = conn.getInputStream();
+            return BitmapFactory.decodeStream(is);
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            try {
+                if (is != null) is.close();
+                if (conn != null) conn.disconnect();
+            } catch (Exception ignored) {}
+        }
+    }
+}
