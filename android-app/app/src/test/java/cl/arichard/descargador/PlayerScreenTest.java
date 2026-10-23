@@ -5,6 +5,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.widget.TextView;
 import cl.arichard.descargador.model.Song;
+import cl.arichard.descargador.data.PlaylistManager;
 import cl.arichard.descargador.player.PlayerManager;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import org.json.JSONArray;
@@ -32,6 +33,9 @@ public class PlayerScreenTest {
         ActivityController<NowPlayingActivity> controller = Robolectric.buildActivity(NowPlayingActivity.class).setup();
         NowPlayingActivity activity = controller.get();
         assertNotNull(activity.findViewById(R.id.btnPlayerMore));
+        assertNotNull(activity.findViewById(R.id.btnNowPlayingFavorite));
+        activity.findViewById(R.id.btnNowPlayingFavorite).performClick();
+        assertTrue(PlaylistManager.getInstance(context).isFavorite(song.getPath()));
         assertEquals(android.view.View.GONE, activity.findViewById(R.id.tabSelectorMp4).getVisibility());
         activity.findViewById(R.id.btnRepeat).performClick();
         assertEquals("Repetir lista", ((TextView) activity.findViewById(R.id.txtRepeatMode)).getText().toString());

@@ -29,6 +29,33 @@ public class CoverArtLoader {
         return instance;
     }
 
+    public Bitmap getBitmap(String path) {
+        if (path == null) return null;
+        Bitmap cached = cache.get(path);
+        if (cached != null) return cached;
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            return ImageLoader.getInstance().getBitmap(path);
+        }
+        try {
+            MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+            byte[] data;
+            try { mmr.setDataSource(path); data = mmr.getEmbeddedPicture(); }
+            finally { mmr.release(); }
+            if (data != null && data.length > 0) {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inSampleSize = 1;
+                while (Math.max(bounds.outWidth, bounds.outHeight) / options.inSampleSize > 512) options.inSampleSize *= 2;
+                Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length, options);
+                if (bmp != null) cache.put(path, bmp);
+                return bmp;
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     public void loadSongCover(String songPath, ImageView imageView) {
         if (imageView == null) return;
         imageView.setImageResource(R.drawable.bg_cover_fallback);

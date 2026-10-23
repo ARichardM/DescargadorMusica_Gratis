@@ -71,6 +71,31 @@ public class FolderAdapter extends RecyclerView.Adapter<FolderAdapter.FolderView
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onFolderClick(name, songs);
         });
+
+        boolean autoDl = context.getSharedPreferences("auto_download_folders", Context.MODE_PRIVATE)
+                .getBoolean(name, false);
+        holder.autoDownload.setChecked(autoDl);
+        holder.autoDownload.setOnClickListener(v -> {
+            boolean checked = holder.autoDownload.isChecked();
+            if (!checked) {
+                holder.autoDownload.setChecked(true);
+                new androidx.appcompat.app.AlertDialog.Builder(context)
+                        .setTitle("¿Desactivar descarga automática?")
+                        .setMessage("Si desactivas la auto-descarga, las canciones nuevas no se descargarán automáticamente al agregarse.\nLas ya descargadas se mantendrán.")
+                        .setPositiveButton("Desactivar", (dialog, which) -> {
+                            holder.autoDownload.setChecked(false);
+                            context.getSharedPreferences("auto_download_folders", Context.MODE_PRIVATE).edit()
+                                    .putBoolean(name, false).apply();
+                        })
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+            } else {
+                context.getSharedPreferences("auto_download_folders", Context.MODE_PRIVATE).edit()
+                        .putBoolean(name, true).apply();
+            }
+        });
+
+        cl.arichard.descargador.util.SafeTap.install(holder.autoDownload);
         cl.arichard.descargador.util.SafeTap.installRowTap(holder.itemView);
     }
 
@@ -79,12 +104,14 @@ public class FolderAdapter extends RecyclerView.Adapter<FolderAdapter.FolderView
     static class FolderViewHolder extends RecyclerView.ViewHolder {
         TextView txtName, txtCount;
         cl.arichard.descargador.util.CoverCollageView collage;
+        androidx.appcompat.widget.SwitchCompat autoDownload;
 
         public FolderViewHolder(@NonNull View itemView) {
             super(itemView);
             collage = itemView.findViewById(R.id.folderCollage);
             txtName = itemView.findViewById(R.id.txtFolderName);
             txtCount = itemView.findViewById(R.id.txtFolderSongCount);
+            autoDownload = itemView.findViewById(R.id.switchFolderAutoDownload);
         }
     }
 }

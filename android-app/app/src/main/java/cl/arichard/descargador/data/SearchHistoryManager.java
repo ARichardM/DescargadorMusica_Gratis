@@ -20,6 +20,7 @@ public class SearchHistoryManager {
 
     private static SearchHistoryManager instance;
     private final SharedPreferences prefs;
+    private Runnable changeListener;
 
     private SearchHistoryManager(Context context) {
         this.prefs = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
@@ -44,6 +45,7 @@ public class SearchHistoryManager {
         JSONArray arr = new JSONArray();
         for (String q : list) arr.put(q);
         prefs.edit().putString(KEY_RECENT_QUERIES, arr.toString()).apply();
+        changed();
     }
 
     public List<String> getRecentQueries() {
@@ -60,6 +62,7 @@ public class SearchHistoryManager {
 
     public void clearRecentQueries() {
         prefs.edit().remove(KEY_RECENT_QUERIES).apply();
+        changed();
     }
 
     // 2. Recently Played Songs
@@ -81,6 +84,7 @@ public class SearchHistoryManager {
 
         // Increment play count
         incrementPlayCount(song.getPath() != null ? song.getPath() : song.getTitle());
+        changed();
     }
 
     public List<Song> getRecentPlayedSongs() {
@@ -116,7 +120,34 @@ public class SearchHistoryManager {
         JSONArray songs = new JSONArray();
         for (Song song : getRecentPlayedSongs()) if (!path.equals(song.getPath())) songs.put(song.toJson());
         prefs.edit().putString(KEY_RECENT_SONGS, songs.toString()).apply();
+        changed();
     }
+
+    public void setChangeListener(Runnable listener) { changeListener = listener; }
+    private void changed() { if (changeListener != null) changeListener.run(); }
+
+    public JSONObject exportJson() {
+        JSONObject root = new JSONObject();
+        try {
+            for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) root.put(entry.getKey(), entry.getValue());
+        } catch (Exception ignored) {}
+        return root;
+    }
+
+    public void importJson(JSONObject root) {
+        if (root == null) return;
+        SharedPreferences.Editor editor = prefs.edit();
+        java.util.Iterator<String> keys = root.keys();
+        while (keys.hasNext()) {
+            String key = keys.next(); Object value = root.opt(key);
+            if (value instanceof Number) editor.putInt(key, ((Number) value).intValue());
+            else if (value instanceof Boolean) editor.putBoolean(key, (Boolean) value);
+            else editor.putString(key, String.valueOf(value));
+        }
+        editor.apply();
+    }
+
+    public void resetForAccount() { prefs.edit().clear().apply(); }
 
     // 3. Top Most Played Songs from library
     public List<Song> getTopPlayed(List<Song> allSongs, int limit) {

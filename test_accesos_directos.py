@@ -44,8 +44,8 @@ $link = $shell.CreateShortcut((Join-Path $env:SHORTCUT_TEST_DIRECTORY 'Descargad
 @{target=$link.TargetPath; arguments=$link.Arguments; icon=$link.IconLocation; working=$link.WorkingDirectory} | ConvertTo-Json -Compress
 ''', self.directory))
         self.assertEqual(Path(data["target"]), shortcut.APP_DIR / ".venv" / "Scripts" / "pythonw.exe")
-        self.assertEqual(data["arguments"], '"' + str(shortcut.APP_DIR / "descargador_gui.py") + '"')
-        self.assertEqual(data["icon"], str(shortcut.APP_DIR / "assets" / "descargador.ico") + ",0")
+        self.assertEqual(data["arguments"], '"' + str(shortcut.APP_DIR / "musicbox_desktop.py") + '"')
+        self.assertEqual(data["icon"], str(shortcut.APP_DIR / "assets" / "logo_app.ico") + ",0")
         self.assertEqual(Path(data["working"]), shortcut.APP_DIR)
 
     def test_repeated_creation_updates_same_shortcut_without_duplicates(self):
@@ -57,14 +57,14 @@ $link = $shell.CreateShortcut((Join-Path $env:SHORTCUT_TEST_DIRECTORY 'Descargad
     def test_unrelated_existing_shortcut_is_not_overwritten(self):
         powershell(r'''
 $shell = New-Object -ComObject WScript.Shell
-$link = $shell.CreateShortcut((Join-Path $env:SHORTCUT_TEST_DIRECTORY 'Descargador.lnk'))
+        $link = $shell.CreateShortcut((Join-Path $env:SHORTCUT_TEST_DIRECTORY 'MusicBox.lnk'))
 $link.TargetPath = Join-Path $env:SystemRoot 'System32\notepad.exe'
 $link.Save()
 ''', self.directory)
-        original = self.directory / "Descargador.lnk"
+        original = self.directory / "MusicBox.lnk"
         previous = original.read_bytes()
         created = shortcut.create_shortcut(self.directory)
-        self.assertEqual(created.name, "Descargador (1).lnk")
+        self.assertEqual(created.name, "MusicBox (1).lnk")
         self.assertEqual(original.read_bytes(), previous)
         self.assertEqual(shortcut.create_shortcut(self.directory), created)
 
@@ -75,7 +75,7 @@ $link.Save()
         with self.assertRaises(FileNotFoundError):
             shortcut.create_shortcut(self.directory / "no-existe")
         with patch.object(shortcut, "APP_DIR", self.directory):
-            with self.assertRaisesRegex(FileNotFoundError, "iniciar_descargador"):
+            with self.assertRaisesRegex(FileNotFoundError, "iniciar_musicbox"):
                 shortcut.create_shortcut(self.directory)
 
 

@@ -29,11 +29,17 @@ public final class SongActions {
     }
 
     public static void addToPlaylist(Activity activity, Song song, Runnable changed) {
+        addMultipleToPlaylist(activity, java.util.Collections.singletonList(song), changed);
+    }
+
+    /** Muestra el selector de playlist para agregar varias canciones de golpe. */
+    public static void addMultipleToPlaylist(Activity activity, List<Song> songs, Runnable changed) {
+        if (songs == null || songs.isEmpty()) return;
         PlaylistManager manager = PlaylistManager.getInstance(activity);
         List<String> names = manager.getPlaylistNames();
         List<String> options = new ArrayList<>(names);
         options.add("＋ Nueva playlist");
-        new AlertDialog.Builder(activity).setTitle("Agregar a playlist")
+        new AlertDialog.Builder(activity).setTitle("Agregar " + songs.size() + " canción" + (songs.size() > 1 ? "es" : "") + " a playlist")
                 .setItems(options.toArray(new String[0]), (d, which) -> {
                     if (which == names.size()) {
                         EditText input = new EditText(activity);
@@ -45,12 +51,32 @@ public final class SongActions {
                         dialog.setOnShowListener(v -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
                             String name = input.getText().toString().trim();
                             if (!manager.createPlaylist(name)) { input.setError("Escribe un nombre nuevo"); return; }
-                            add(activity, manager, name, song, changed);
+                            addBulk(activity, manager, name, songs, changed);
                             dialog.dismiss();
                         }));
                         dialog.show();
-                    } else add(activity, manager, names.get(which), song, changed);
+                    } else addBulk(activity, manager, names.get(which), songs, changed);
                 }).setNegativeButton("Cancelar", null).show();
+    }
+
+    private static void addBulk(Activity activity, PlaylistManager manager, String name, List<Song> songs, Runnable changed) {
+        int added = 0;
+        for (Song song : songs) {
+            boolean ok;
+            if (song.isOnline()) {
+                ok = manager.addOnlineTrack(name, new SearchResult(song.getVideoId(), song.getTitle(),
+                        song.getArtist(), song.getDuration() / 1000, song.getCoverPath(),
+                        "https://www.youtube.com/watch?v=" + song.getVideoId()));
+            } else ok = manager.addSongToPlaylist(name, song.getPath());
+            if (ok) added++;
+        }
+        int finalAdded = added;
+        activity.runOnUiThread(() -> {
+            message(activity, finalAdded == songs.size()
+                    ? finalAdded + " canción" + (finalAdded > 1 ? "es" : "") + " agregada" + (finalAdded > 1 ? "s" : "") + " a " + name
+                    : finalAdded + " agregada" + (finalAdded > 1 ? "s" : "") + " (" + (songs.size() - finalAdded) + " ya estaban en " + name + ")");
+            changed.run();
+        });
     }
 
     private static void add(Activity activity, PlaylistManager manager, String name, Song song, Runnable changed) {

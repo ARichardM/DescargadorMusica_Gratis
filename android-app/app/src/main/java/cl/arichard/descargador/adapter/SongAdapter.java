@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import cl.arichard.descargador.R;
 import cl.arichard.descargador.data.PlaylistManager;
+import cl.arichard.descargador.data.SearchHistoryManager;
 import cl.arichard.descargador.model.Song;
 import cl.arichard.descargador.player.PlayerManager;
 import cl.arichard.descargador.util.CoverArtLoader;
@@ -26,12 +27,16 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         void onSongClick(Song song, List<Song> queue, int position);
         void onFavoriteClick(Song song, int position);
         void onMenuClick(Song song, View anchor, int position);
+        /** Llamado cuando el modo de selección cambia (se activa/desactiva o cambia el conteo). */
+        default void onSelectionChanged(int count) {}
     }
 
     private final Context context;
     private final List<Song> originalList = new ArrayList<>();
     private final List<Song> displayedList = new ArrayList<>();
     private final OnSongClickListener listener;
+    private final java.util.Set<String> selectedPaths = new java.util.LinkedHashSet<>();
+    private boolean selectionMode = false;
 
     private String currentQuery = "";
     private int currentFilterMode = 0; // 0=All, 1=Favorites, 2=Recent, 3=A-Z
@@ -66,12 +71,20 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         displayedList.clear();
         PlaylistManager pm = PlaylistManager.getInstance(context);
 
-        for (Song s : originalList) {
-            // Check favorite filter
-            if (currentFilterMode == 1 && !pm.isFavorite(s.getPath())) {
-                continue;
+        List<Song> source = originalList;
+        if (currentFilterMode == 1) {
+            source = new ArrayList<>();
+            for (Song recent : SearchHistoryManager.getInstance(context).getRecentPlayedSongs()) {
+                for (Song available : originalList) {
+                    if (available.getPath().equals(recent.getPath())) {
+                        source.add(available);
+                        break;
+                    }
+                }
             }
+        }
 
+        for (Song s : source) {
             // Check text query filter
             if (!currentQuery.isEmpty()) {
                 boolean matchTitle = s.getTitle().toLowerCase().contains(currentQuery);
@@ -85,12 +98,8 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
             displayedList.add(s);
         }
 
-        // Apply sorting
-        if (currentFilterMode == 2) {
-            // Recientes (date added descending)
-            Collections.sort(displayedList, (a, b) -> Long.compare(b.getDateAdded(), a.getDateAdded()));
-        } else if (currentFilterMode == 3) {
-            // A - Z
+        // Apply sorting (mode 2 or legacy mode 3 = A - Z)
+        if (currentFilterMode == 2 || currentFilterMode == 3) {
             Collections.sort(displayedList, (a, b) -> a.getTitle().compareToIgnoreCase(b.getTitle()));
         }
 
@@ -111,6 +120,42 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         return id;
     }
 
+    public List<Song> getSelectedSongs() {
+        List<Song> result = new ArrayList<>();
+        for (Song s : displayedList) if (selectedPaths.contains(s.getPath())) result.add(s);
+        return result;
+    }
+    public int getSelectionCount() { return selectedPaths.size(); }
+    public boolean isSelectionMode() { return selectionMode; }
+    public void clearSelection() {
+        selectedPaths.clear();
+        selectionMode = false;
+        notifyDataSetChanged();
+        if (listener != null) listener.onSelectionChanged(0);
+    }
+    public void selectAll() {
+        for (Song s : displayedList) selectedPaths.add(s.getPath());
+        if (!displayedList.isEmpty()) {
+            selectionMode = true;
+            notifyDataSetChanged();
+            if (listener != null) listener.onSelectionChanged(selectedPaths.size());
+        }
+    }
+    private void toggleSelection(Song song) {
+        if (selectedPaths.contains(song.getPath())) selectedPaths.remove(song.getPath());
+        else selectedPaths.add(song.getPath());
+        if (selectedPaths.isEmpty()) { selectionMode = false; }
+        notifyDataSetChanged();
+        if (listener != null) listener.onSelectionChanged(selectedPaths.size());
+    }
+    public void activateSelectionMode(Song firstSong) {
+        selectionMode = true;
+        selectedPaths.clear();
+        if (firstSong != null) selectedPaths.add(firstSong.getPath());
+        notifyDataSetChanged();
+        if (listener != null) listener.onSelectionChanged(selectedPaths.size());
+    }
+
     public List<Song> getDisplayedList() { return displayedList; }
 
     @NonNull @Override
@@ -129,33 +174,59 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
 
         boolean isLocalFile = song.getPath() != null && new File(song.getPath()).exists();
         if (holder.imgDownloadedBadge != null) {
-            holder.imgDownloadedBadge.setVisibility(isLocalFile ? View.VISIBLE : View.GONE);
+            holder.imgDownloadedBadge.setVisibility(isLocalFile && !selectionMode ? View.VISIBLE : View.GONE);
         }
 
+        boolean isSelected = selectedPaths.contains(song.getPath());
         Song current = PlayerManager.getInstance().getCurrentSong();
-        boolean isPlayingThis = current != null && current.getPath() != null && current.getPath().equals(song.getPath());
+        boolean isPlayingThis = !selectionMode && current != null && current.getPath() != null && current.getPath().equals(song.getPath());
 
         int accentColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.accent);
         int primaryTextColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.text_primary);
 
-        holder.itemView.setBackgroundResource(isPlayingThis ? R.drawable.bg_song_playing : 0);
-        holder.imgIndicator.setImageResource(PlayerManager.getInstance().isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play_arrow);
-        holder.itemView.setContentDescription(song.getTitle() + (isPlayingThis ? " · Canción actual" : ""));
-        if (isPlayingThis) {
-            holder.txtTitle.setTextColor(accentColor);
-            holder.viewPlayingOverlay.setVisibility(View.VISIBLE);
-            holder.imgIndicator.setVisibility(View.VISIBLE);
+        if (selectionMode) {
+            // Selection mode UI
+            holder.itemView.setBackgroundResource(isSelected ? R.drawable.bg_song_playing : 0);
+            holder.txtTitle.setTextColor(isSelected ? accentColor : primaryTextColor);
+            holder.viewPlayingOverlay.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+            holder.imgIndicator.setVisibility(isSelected ? View.VISIBLE : View.GONE);
+            if (isSelected) holder.imgIndicator.setImageResource(R.drawable.ic_check);
+            holder.btnFavorite.setVisibility(View.GONE);
+            holder.btnMenu.setVisibility(View.GONE);
         } else {
-            holder.txtTitle.setTextColor(primaryTextColor);
-            holder.viewPlayingOverlay.setVisibility(View.GONE);
-            holder.imgIndicator.setVisibility(View.GONE);
+            holder.itemView.setBackgroundResource(isPlayingThis ? R.drawable.bg_song_playing : 0);
+            holder.imgIndicator.setImageResource(PlayerManager.getInstance().isPlaying() ? R.drawable.ic_pause : R.drawable.ic_play_arrow);
+            holder.itemView.setContentDescription(song.getTitle() + (isPlayingThis ? " · Canción actual" : ""));
+            if (isPlayingThis) {
+                holder.txtTitle.setTextColor(accentColor);
+                holder.viewPlayingOverlay.setVisibility(View.VISIBLE);
+                holder.imgIndicator.setVisibility(View.VISIBLE);
+            } else {
+                holder.txtTitle.setTextColor(primaryTextColor);
+                holder.viewPlayingOverlay.setVisibility(View.GONE);
+                holder.imgIndicator.setVisibility(View.GONE);
+            }
+            holder.btnFavorite.setVisibility(View.VISIBLE);
+            holder.btnMenu.setVisibility(View.VISIBLE);
         }
 
         boolean fav = PlaylistManager.getInstance(context).isFavorite(song.getPath());
         holder.btnFavorite.setImageResource(fav ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
 
         holder.itemView.setOnClickListener(v -> {
-            if (listener != null) listener.onSongClick(song, displayedList, position);
+            if (selectionMode) {
+                toggleSelection(song);
+            } else {
+                if (listener != null) listener.onSongClick(song, displayedList, position);
+            }
+        });
+
+        holder.itemView.setOnLongClickListener(v -> {
+            if (!selectionMode) {
+                activateSelectionMode(song);
+                return true;
+            }
+            return false;
         });
 
         holder.btnFavorite.setOnClickListener(v -> {

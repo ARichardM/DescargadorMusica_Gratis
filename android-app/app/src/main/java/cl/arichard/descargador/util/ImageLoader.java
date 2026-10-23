@@ -37,6 +37,11 @@ public class ImageLoader {
         return instance;
     }
 
+    public Bitmap getBitmap(String url) {
+        if (url == null || url.isEmpty()) return null;
+        return memoryCache.get(url);
+    }
+
     public void load(String url, ImageView imageView) {
         if (url == null || url.isEmpty() || imageView == null) return;
 

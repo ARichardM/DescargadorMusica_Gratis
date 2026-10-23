@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/bg_primary" android:padding="28dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="center" android:gravity="center" android:orientation="vertical">
+        <ImageView android:layout_width="132dp" android:layout_height="132dp"
+            android:src="@drawable/logo_app" android:contentDescription="MusicBox"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="22dp" android:text="Tu música, en todos lados"
+            android:textColor="@color/text_primary" android:textSize="25sp" android:textStyle="bold"/>
+        <TextView android:layout_width="300dp" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:gravity="center"
+            android:text="Sincroniza tu biblioteca, favoritos, playlists y preferencias."
+            android:textColor="@color/text_secondary" android:textSize="14sp" android:lineSpacingMultiplier="1.2"/>
+        <Button android:id="@+id/btnGoogleLogin" android:layout_width="280dp" android:layout_height="54dp"
+            android:layout_marginTop="28dp" android:background="@drawable/bg_google_button"
+            android:text="G   Continuar con Google" android:textAllCaps="false"
+            android:textColor="@color/text_primary" android:textSize="15sp" android:textStyle="bold"
+            android:stateListAnimator="@animator/button_lift"/>
+        <ProgressBar android:id="@+id/loginProgress" android:layout_width="30dp" android:layout_height="30dp"
+            android:layout_marginTop="18dp" android:visibility="gone"/>
+        <TextView android:id="@+id/txtLoginError" android:layout_width="300dp" android:layout_height="wrap_content"
+            android:layout_marginTop="12dp" android:gravity="center" android:textColor="#FF453A"
+            android:textSize="12sp" android:visibility="gone"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="22dp" android:text="Las descargas permanecen en este dispositivo."
+            android:textColor="@color/text_muted" android:textSize="11sp"/>
+    </LinearLayout>
+</FrameLayout>

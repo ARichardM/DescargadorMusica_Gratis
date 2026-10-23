@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import cl.arichard.descargador.data.PlaylistManager;
 import cl.arichard.descargador.model.Song;
+import cl.arichard.descargador.model.SearchResult;
 import cl.arichard.descargador.player.PlayerManager;
 import cl.arichard.descargador.util.CoverArtLoader;
 import cl.arichard.descargador.util.StorageUtil;
@@ -31,7 +32,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
     public static final String EXTRA_THUMBNAIL = "extra_thumbnail";
 
     private View nowPlayingRoot;
-    private ImageView btnBack, btnAction;
+    private ImageView btnBack, btnAction, btnFavorite;
     private TextView tabSelectorMp3, tabSelectorMp4;
     private FrameLayout containerCoverArt, containerVideoPlayer, videoHostLayout;
     private ImageView imgNowPlayingCover;
@@ -75,6 +76,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         nowPlayingRoot = findViewById(R.id.nowPlayingRoot);
         btnBack = findViewById(R.id.btnBackNowPlaying);
         btnAction = findViewById(R.id.btnNowPlayingAction);
+        btnFavorite = findViewById(R.id.btnNowPlayingFavorite);
 
         tabSelectorMp3 = findViewById(R.id.tabSelectorMp3);
         tabSelectorMp4 = findViewById(R.id.tabSelectorMp4);
@@ -137,17 +139,8 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
             Toast.makeText(this, repeatLabel(mode), Toast.LENGTH_SHORT).show();
         });
 
-        btnAction.setOnClickListener(v -> {
-            if (PlayerManager.getInstance().isOnlineTrack()) {
-                startTrackDownload();
-            } else {
-                Song current = PlayerManager.getInstance().getCurrentSong();
-                if (current != null) {
-                    boolean fav = PlaylistManager.getInstance(this).toggleFavorite(current.getPath());
-                    btnAction.setImageResource(fav ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
-                }
-            }
-        });
+        btnAction.setOnClickListener(v -> startTrackDownload());
+        btnFavorite.setOnClickListener(v -> toggleCurrentFavorite());
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
@@ -314,16 +307,38 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         txtTitle.setText(song.getTitle());
         txtArtist.setText(song.getArtist());
 
-        if (PlayerManager.getInstance().isOnlineTrack()) {
-            btnAction.setImageResource(R.drawable.ic_download);
-        } else {
-            boolean fav = PlaylistManager.getInstance(this).isFavorite(song.getPath());
-            btnAction.setImageResource(fav ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
-        }
+        btnAction.setVisibility(song.isOnline() ? View.VISIBLE : View.GONE);
+        updateFavoriteButton(song);
 
         if (imgNowPlayingCover != null) {
             CoverArtLoader.getInstance().loadSongCover(song.getCoverPath(), imgNowPlayingCover);
         }
+    }
+
+    private void toggleCurrentFavorite() {
+        Song song = PlayerManager.getInstance().getCurrentSong();
+        if (song == null) return;
+        PlaylistManager playlists = PlaylistManager.getInstance(this);
+        if (song.isOnline()) {
+            String videoId = song.getVideoId();
+            boolean favorite = playlists.isOnlineTrackInPlaylist("Favoritos", videoId);
+            if (favorite) playlists.removeSongFromPlaylist("Favoritos", song.getPath());
+            else playlists.addOnlineTrack("Favoritos", new SearchResult(videoId, song.getTitle(), song.getArtist(),
+                    Math.max(0, song.getDuration() / 1000), song.getCoverPath(),
+                    "https://www.youtube.com/watch?v=" + videoId));
+        } else {
+            playlists.toggleFavorite(song.getPath());
+        }
+        updateFavoriteButton(song);
+    }
+
+    private void updateFavoriteButton(Song song) {
+        boolean favorite = song.isOnline()
+                ? PlaylistManager.getInstance(this).isOnlineTrackInPlaylist("Favoritos", song.getVideoId())
+                : PlaylistManager.getInstance(this).isFavorite(song.getPath());
+        btnFavorite.setImageResource(favorite ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
+        btnFavorite.clearColorFilter();
+        btnFavorite.setContentDescription(favorite ? "Quitar de favoritos" : "Agregar a favoritos");
     }
 
     private void showPlayerMenu(View anchor) {
@@ -346,6 +361,15 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         });
         menu.getMenu().add("Cola de reproducci\u00f3n").setIcon(R.drawable.ic_queue).setOnMenuItemClickListener(item -> {
             cl.arichard.descargador.player.QueueSheet.show(this); return true;
+        });
+        menu.getMenu().add("Guardar cola en playlist...").setIcon(R.drawable.ic_playlist).setOnMenuItemClickListener(item -> {
+            java.util.List<Song> q = PlayerManager.getInstance().getQueue();
+            if (q != null && !q.isEmpty()) {
+                cl.arichard.descargador.util.SongActions.addMultipleToPlaylist(this, q, () -> {});
+            } else {
+                Toast.makeText(this, "La cola est\u00e1 vac\u00eda", Toast.LENGTH_SHORT).show();
+            }
+            return true;
         });
         for (int i = 0; i < menu.getMenu().size(); i++) {
             android.graphics.drawable.Drawable icon = menu.getMenu().getItem(i).getIcon();

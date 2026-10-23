@@ -32,6 +32,8 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
     private final OnResultClickListener listener;
     private final Set<String> downloadedIds = new HashSet<>();
     private final Set<String> downloadedTitles = new HashSet<>();
+    private final Set<String> downloadingIds = new HashSet<>();
+    private final Set<String> justCompletedIds = new HashSet<>();
 
     public SearchResultAdapter(Context context, OnResultClickListener listener) {
         this.context = context;
@@ -48,6 +50,35 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
         downloadedTitles.clear();
         if (titles != null) downloadedTitles.addAll(titles);
         notifyDataSetChanged();
+    }
+
+    public void setDownloadingIds(Set<String> ids) {
+        downloadingIds.clear();
+        if (ids != null) downloadingIds.addAll(ids);
+        notifyDataSetChanged();
+    }
+
+    public void addDownloadingId(String id) {
+        if (id != null) {
+            downloadingIds.add(id);
+            notifyDataSetChanged();
+        }
+    }
+
+    public void removeDownloadingId(String id) {
+        if (id != null) {
+            downloadingIds.remove(id);
+            notifyDataSetChanged();
+        }
+    }
+
+    public void markDownloadCompleted(String id) {
+        if (id != null) {
+            downloadingIds.remove(id);
+            downloadedIds.add(id);
+            justCompletedIds.add(id);
+            notifyDataSetChanged();
+        }
     }
 
     private String normalize(String value) {
@@ -79,8 +110,34 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
 
         ImageLoader.getInstance().load(item.getThumbnailUrl(), holder.imgThumbnail);
 
-        holder.imgDownloaded.setVisibility(downloadedIds.contains(item.getId()) || downloadedTitles.contains(normalize(item.getTitle()))
-                ? View.VISIBLE : View.GONE);
+        boolean isDownloading = downloadingIds.contains(item.getId());
+        boolean isDownloaded = downloadedIds.contains(item.getId()) || downloadedTitles.contains(normalize(item.getTitle()));
+
+        if (isDownloading) {
+            holder.progressDownload.setVisibility(View.VISIBLE);
+            holder.imgDownloaded.setVisibility(View.GONE);
+        } else {
+            holder.progressDownload.setVisibility(View.GONE);
+            if (isDownloaded) {
+                holder.imgDownloaded.setVisibility(View.VISIBLE);
+                if (justCompletedIds.remove(item.getId())) {
+                    holder.imgDownloaded.setScaleX(0f);
+                    holder.imgDownloaded.setScaleY(0f);
+                    holder.imgDownloaded.setAlpha(0f);
+                    holder.imgDownloaded.animate()
+                            .scaleX(1f).scaleY(1f).alpha(1f)
+                            .setDuration(280)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(2.0f))
+                            .start();
+                } else {
+                    holder.imgDownloaded.setScaleX(1f);
+                    holder.imgDownloaded.setScaleY(1f);
+                    holder.imgDownloaded.setAlpha(1f);
+                }
+            } else {
+                holder.imgDownloaded.setVisibility(View.GONE);
+            }
+        }
         boolean favorite = PlaylistManager.getInstance(context).isOnlineTrackInPlaylist("Favoritos", item.getId());
         holder.btnFavorite.setImageResource(favorite ? R.drawable.ic_favorite_filled : R.drawable.ic_favorite);
 
@@ -118,6 +175,7 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
         TextView txtChannel;
         FrameLayout btnAdd;
         ImageView btnPlay, btnFavorite, imgDownloaded;
+        android.widget.ProgressBar progressDownload;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -128,6 +186,7 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
             btnPlay = itemView.findViewById(R.id.btnPlayResult);
             btnFavorite = itemView.findViewById(R.id.btnFavoriteResult);
             imgDownloaded = itemView.findViewById(R.id.imgDownloadedResult);
+            progressDownload = itemView.findViewById(R.id.progressDownloadResult);
         }
     }
 }

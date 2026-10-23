@@ -44,7 +44,7 @@ public class LibraryNavigationTest {
         }
     }
     @Test public void reopeningKeepsPlaylistAndSearchInsteadOfReturningToAllSongs() throws Exception {
-        context.getSharedPreferences("library_navigation", 0).edit().putInt("mode", 2)
+        context.getSharedPreferences("library_navigation", 0).edit().putInt("mode", 3)
                 .putString("sublist", "En camino").putString("query", "Recuerdo").putBoolean("search_tab", false).commit();
         ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class).setup();
         finishScan();
@@ -60,7 +60,7 @@ public class LibraryNavigationTest {
         reopened.pause().stop().destroy();
     }
     @Test public void returningFromFolderKeepsFolderMode() throws Exception {
-        context.getSharedPreferences("library_navigation", 0).edit().putInt("mode", 1)
+        context.getSharedPreferences("library_navigation", 0).edit().putInt("mode", 2)
                 .putString("sublist", "Viajes").putBoolean("search_tab", false).commit();
         ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class).setup();
         finishScan(); MainActivity activity = controller.get();
@@ -70,6 +70,6 @@ public class LibraryNavigationTest {
                 instanceof cl.arichard.descargador.adapter.FolderAdapter);
         controller.pause().stop().destroy();
         assertEquals("", context.getSharedPreferences("library_navigation", 0).getString("sublist", ""));
-        assertEquals(1, context.getSharedPreferences("library_navigation", 0).getInt("mode", -1));
+        assertEquals(2, context.getSharedPreferences("library_navigation", 0).getInt("mode", -1));
     }
 }

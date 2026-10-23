@@ -31,6 +31,8 @@ novela_mushoku/
 *.pem
 *.key
 *.pfx
+google-services.json
+desktop_oauth_client.json
 
 # Cachés, registros y reportes de sesiones locales.
 *.py[cod]

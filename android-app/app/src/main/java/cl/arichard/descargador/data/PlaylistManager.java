@@ -21,6 +21,7 @@ public class PlaylistManager {
     private final Map<String, List<String>> playlists = new HashMap<>();
     private final Map<String, SearchResult> onlineTracks = new HashMap<>();
     private final Set<String> autoDownloadPlaylists = new HashSet<>();
+    private Runnable changeListener;
 
     private PlaylistManager(Context context) {
         this.storageFile = new File(context.getFilesDir(), "playlists.json");
@@ -40,6 +41,8 @@ public class PlaylistManager {
 
     private void load() {
         playlists.clear();
+        onlineTracks.clear();
+        autoDownloadPlaylists.clear();
         if (!storageFile.exists()) return;
         try (FileInputStream fis = new FileInputStream(storageFile)) {
             byte[] data = new byte[(int) storageFile.length()];
@@ -82,27 +85,48 @@ public class PlaylistManager {
 
     private void save() {
         try (FileOutputStream fos = new FileOutputStream(storageFile)) {
-            JSONObject root = new JSONObject();
+            JSONObject root = exportJson();
+            fos.write(root.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if (changeListener != null) changeListener.run();
+    }
+
+    public synchronized void setChangeListener(Runnable listener) { changeListener = listener; }
+
+    public synchronized JSONObject exportJson() {
+        JSONObject root = new JSONObject();
+        try {
             JSONObject lists = new JSONObject();
-            for (Map.Entry<String, List<String>> entry : playlists.entrySet()) {
-                JSONArray arr = new JSONArray(entry.getValue());
-                lists.put(entry.getKey(), arr);
-            }
+            for (Map.Entry<String, List<String>> entry : playlists.entrySet())
+                lists.put(entry.getKey(), new JSONArray(entry.getValue()));
             root.put("playlists", lists);
             JSONObject tracks = new JSONObject();
             for (Map.Entry<String, SearchResult> entry : onlineTracks.entrySet()) {
-                SearchResult r = entry.getValue();
-                JSONObject item = new JSONObject();
+                SearchResult r = entry.getValue(); JSONObject item = new JSONObject();
                 item.put("title", r.getTitle()); item.put("channel", r.getChannel());
                 item.put("duration", r.getDurationSeconds()); item.put("thumbnail", r.getThumbnailUrl());
                 item.put("url", r.getUrl()); tracks.put(entry.getKey(), item);
             }
             root.put("onlineTracks", tracks);
             root.put("autoDownload", new JSONArray(autoDownloadPlaylists));
+        } catch (Exception ignored) {}
+        return root;
+    }
+
+    public synchronized void importJson(JSONObject root) {
+        if (root == null) return;
+        try (FileOutputStream fos = new FileOutputStream(storageFile)) {
             fos.write(root.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception ignored) { return; }
+        load();
+        if (!playlists.containsKey("Favoritos")) playlists.put("Favoritos", new ArrayList<>());
+    }
+
+    public synchronized void resetForAccount() {
+        playlists.clear(); onlineTracks.clear(); autoDownloadPlaylists.clear();
+        playlists.put("Favoritos", new ArrayList<>()); save();
     }
 
     public synchronized List<String> getPlaylistNames() {

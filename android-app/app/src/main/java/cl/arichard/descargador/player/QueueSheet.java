@@ -113,9 +113,16 @@ public final class QueueSheet implements PlayerManager.PlaybackListener {
         touchHelper.attachToRecyclerView(recycler);
         recycler.setNestedScrollingEnabled(true);
         LinearLayout footer = new LinearLayout(activity);
-        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(0, dp(52), 1); addParams.setMargins(0, dp(8), dp(4), 0);
-        LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(0, dp(52), 1); clearParams.setMargins(dp(4), dp(8), 0, 0);
-        footer.addView(button("＋ Agregar canciones", this::chooseSongs), addParams);
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(0, dp(52), 1); addParams.setMargins(0, dp(8), dp(3), 0);
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, dp(52), 1); saveParams.setMargins(dp(3), dp(8), dp(3), 0);
+        LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(0, dp(52), 1); clearParams.setMargins(dp(3), dp(8), 0, 0);
+        footer.addView(button("＋ Agregar", this::chooseSongs), addParams);
+        footer.addView(button("Guardar playlist", () -> {
+            List<Song> q = player.getQueue();
+            if (q != null && !q.isEmpty()) {
+                cl.arichard.descargador.util.SongActions.addMultipleToPlaylist(activity, q, () -> {});
+            }
+        }), saveParams);
         footer.addView(button("Limpiar cola", () -> player.clearUpcoming()), clearParams); root.addView(footer);
         dialog.setContentView(root);
         root.getLayoutParams().height = Math.round(activity.getResources().getDisplayMetrics().heightPixels * .78f);

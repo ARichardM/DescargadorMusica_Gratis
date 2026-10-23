@@ -74,11 +74,25 @@ public class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.Playli
         List<cl.arichard.descargador.model.Song> songs = PlaylistManager.getInstance(context).resolveSongs(name, library);
         holder.collage.setSongs(songs);
         holder.txtCount.setText(songs.size() + (songs.size() == 1 ? " canción" : " canciones"));
-        holder.autoDownload.setOnCheckedChangeListener(null);
         holder.autoDownload.setChecked(PlaylistManager.getInstance(context).isAutoDownloadEnabled(name));
-        holder.autoDownload.setOnCheckedChangeListener((button, checked) -> {
-            PlaylistManager.getInstance(context).setAutoDownloadEnabled(name, checked);
-            if (listener != null) listener.onAutoDownloadChanged(name, checked);
+        holder.autoDownload.setOnClickListener(v -> {
+            boolean checked = holder.autoDownload.isChecked();
+            if (!checked) {
+                holder.autoDownload.setChecked(true);
+                new androidx.appcompat.app.AlertDialog.Builder(context)
+                        .setTitle("¿Desactivar descarga automática?")
+                        .setMessage("Si desactivas la auto-descarga, las canciones nuevas no se descargarán automáticamente al agregarse.\nLas ya descargadas se mantendrán.")
+                        .setPositiveButton("Desactivar", (dialog, which) -> {
+                            holder.autoDownload.setChecked(false);
+                            PlaylistManager.getInstance(context).setAutoDownloadEnabled(name, false);
+                            if (listener != null) listener.onAutoDownloadChanged(name, false);
+                        })
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+            } else {
+                PlaylistManager.getInstance(context).setAutoDownloadEnabled(name, true);
+                if (listener != null) listener.onAutoDownloadChanged(name, true);
+            }
         });
 
         holder.itemView.setOnClickListener(v -> {
