@@ -33,7 +33,7 @@ jobs:
       - name: Pruebas y APK de preview
         run: ./gradlew testPreviewUnitTest assemblePreview lintPreview --stacktrace
       - name: Publicar APK de prueba
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MusicBox-preview-${{ github.sha }}
           path: apps/android/app/build/outputs/apk/preview/app-preview.apk
