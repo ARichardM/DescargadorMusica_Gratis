@@ -2,6 +2,14 @@
 
 ## Sin publicar
 
+## 2.2.1 — 24 de octubre de 2026
+
+- Reorganización profesional del monorepo en `apps/`, `tests/`, `scripts/` y `legacy/`.
+- Android actualizado a target SDK 36 sin acceso total al almacenamiento.
+- Backups internos deshabilitados, servicio multimedia protegido y archivos compartidos mediante `FileProvider`.
+- WebView limitado a HTTPS y dominios oficiales de YouTube, sin acceso a archivos locales ni contenido mixto.
+- Pillow actualizado a 13 y vigilancia automática mediante Dependabot y CodeQL.
+
 ### MusicBox Android 2.2.0
 
 - Bucle desactivado, de lista o de canción, con estado visible y preferencia guardada.

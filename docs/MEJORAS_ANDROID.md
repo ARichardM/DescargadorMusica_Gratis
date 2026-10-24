@@ -60,7 +60,7 @@ publicar una actualización sobre la instalación original se necesitará su cla
 - La prueba de scroll espera a que termine la inercia y elige una canción dentro
   del área visible; evita comenzar sobre filtros que cubren filas recortadas.
 
-El APK final se genera en `android-app/app/build/outputs/apk/preview/app-preview.apk`.
+El APK final se genera en `apps/android/app/build/outputs/apk/preview/app-preview.apk`.
 Los archivos descargados, claves, capturas del teléfono y directorios de compilación
 permanecen fuera del control de versiones. Las rutas online dependen de YouTube y
 de yt-dlp; estas pruebas no descargan ni eliminan archivos personales del teléfono.

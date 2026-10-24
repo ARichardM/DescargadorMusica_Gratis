@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: android-app
+        working-directory: apps/android
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -46,7 +46,7 @@ jobs:
         run: ./gradlew testPreviewUnitTest assembleRelease --stacktrace
       - name: Preparar descarga
         shell: bash
-        run: cp app/build/outputs/apk/release/app-release.apk ../MusicBox-Android.apk
+        run: cp app/build/outputs/apk/release/app-release.apk ../../MusicBox-Android.apk
       - name: Crear GitHub Release
         uses: softprops/action-gh-release@v2
         with:

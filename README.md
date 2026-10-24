@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ARichardM/DescargadorMusica_Gratis/releases/latest"><img alt="Última versión" src="https://img.shields.io/github/v/release/ARichardM/DescargadorMusica_Gratis?style=for-the-badge&color=0A84FF"></a>
-  <a href="https://github.com/ARichardM/DescargadorMusica_Gratis/actions/workflows/android-ci.yml"><img alt="Android CI" src="https://img.shields.io/github/actions/workflow/status/ARichardM/DescargadorMusica_Gratis/android-ci.yml?style=for-the-badge&label=Android"></a>
+  <a href="https://github.com/ARichardM/MusicBox/releases/latest"><img alt="Última versión" src="https://img.shields.io/github/v/release/ARichardM/MusicBox?style=for-the-badge&color=0A84FF"></a>
+  <a href="https://github.com/ARichardM/MusicBox/actions/workflows/android-ci.yml"><img alt="Android CI" src="https://img.shields.io/github/actions/workflow/status/ARichardM/MusicBox/android-ci.yml?style=for-the-badge&label=Android"></a>
   <img alt="Android 7+" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%2F11-0078D4?style=for-the-badge&logo=windows11&logoColor=white">
 </p>
@@ -15,8 +15,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ARichardM/DescargadorMusica_Gratis/releases/latest/download/MusicBox-Android.apk"><strong>Descargar APK</strong></a>
-  · <a href="https://github.com/ARichardM/DescargadorMusica_Gratis/releases">Ver versiones</a>
+  <a href="https://github.com/ARichardM/MusicBox/releases/latest/download/MusicBox-Android.apk"><strong>Descargar APK</strong></a>
+  · <a href="https://github.com/ARichardM/MusicBox/releases">Ver versiones</a>
   · <a href="docs/GUIA_USO.md">Guía de uso</a>
 </p>
 
@@ -45,38 +45,38 @@
 - Reproducción en segundo plano con MediaSession.
 - Descargas guardadas localmente en el dispositivo.
 
-Descarga la versión preparada desde [Releases](https://github.com/ARichardM/DescargadorMusica_Gratis/releases/latest). Para actualizar sin perder datos, instala una versión firmada con la misma clave que la anterior.
+Descarga la versión preparada desde [Releases](https://github.com/ARichardM/MusicBox/releases/latest). Para actualizar sin perder datos, instala una versión firmada con la misma clave que la anterior.
 
 ### Windows
 
 La interfaz actual de escritorio está construida con **Python + PySide6/QML**. También se conservan herramientas históricas de importación, OCR y revisión de listas desarrolladas con Tkinter.
 
 ```powershell
-git clone https://github.com/ARichardM/DescargadorMusica_Gratis.git
-cd DescargadorMusica_Gratis
+git clone https://github.com/ARichardM/MusicBox.git
+cd MusicBox
 python -m venv .venv
-.\.venv\Scripts\pip.exe install -r requirements.txt
-.\.venv\Scripts\python.exe musicbox_desktop.py
+.\.venv\Scripts\pip.exe install -r apps\desktop\requirements.txt
+.\.venv\Scripts\python.exe apps\desktop\musicbox_desktop.py
 ```
 
 Para usar inicio de sesión en una compilación propia debes proporcionar tus archivos locales de Firebase/OAuth. No se incluyen credenciales privadas en Git.
 
 ## Compilar Android
 
-Necesitas JDK 17 y un archivo válido `android-app/app/google-services.json` de tu proyecto Firebase.
+Necesitas JDK 17 y un archivo válido `apps/android/app/google-services.json` de tu proyecto Firebase.
 
 ```powershell
-cd android-app
+cd apps/android
 .\gradlew.bat testPreviewUnitTest assembleDebug
 ```
 
-El APK queda en `android-app/app/build/outputs/apk/debug/app-debug.apk`. La variante `preview` se instala como **MusicBox pruebas** y mantiene sus datos separados:
+El APK queda en `apps/android/app/build/outputs/apk/debug/app-debug.apk`. La variante `preview` se instala como **MusicBox pruebas** y mantiene sus datos separados:
 
 ```powershell
 .\gradlew.bat assemblePreview
 ```
 
-Consulta la [documentación específica de Android](android-app/README.md) para las pruebas de gestos y la arquitectura del reproductor.
+Consulta la [documentación específica de Android](apps/android/README.md) para las pruebas de gestos y la arquitectura del reproductor.
 
 ## Publicar una versión
 
@@ -97,13 +97,12 @@ Después crea una etiqueta como `v2.2.0`. GitHub generará una Release con el AP
 ## Arquitectura
 
 ```text
-android-app/             Aplicación Android nativa (Java)
-desktop_qml/             Interfaz QML de escritorio
-musicbox_desktop.py      Backend de la aplicación para Windows
-musicbox_cloud.py        Autenticación y sincronización de escritorio
-descargador_gui.py       Herramienta clásica de descargas e importación
+apps/android/            Aplicación Android nativa (Java)
+apps/desktop/            Aplicación Windows, interfaz QML y recursos
+tests/desktop/           Pruebas automatizadas de escritorio
+scripts/windows/         Herramientas de instalación y mantenimiento
+legacy/                  Prototipos históricos conservados como referencia
 docs/                    Guías y documentación técnica
-tests/                   Pruebas del proyecto de escritorio
 ```
 
 Firebase sincroniza metadatos ligeros —playlists, favoritos, preferencias y dispositivos—. Los archivos multimedia permanecen en el equipo donde fueron descargados.
@@ -117,6 +116,6 @@ Firebase sincroniza metadatos ligeros —playlists, favoritos, preferencias y di
 
 ## Estado y contribuciones
 
-MusicBox está en desarrollo activo. Revisa [CHANGELOG.md](CHANGELOG.md), propón mejoras mediante [Issues](https://github.com/ARichardM/DescargadorMusica_Gratis/issues) y consulta [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un Pull Request. Los problemas sensibles se reportan siguiendo [SECURITY.md](SECURITY.md).
+MusicBox está en desarrollo activo. Revisa [CHANGELOG.md](CHANGELOG.md), propón mejoras mediante [Issues](https://github.com/ARichardM/MusicBox/issues) y consulta [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir un Pull Request. Los problemas sensibles se reportan siguiendo [SECURITY.md](SECURITY.md).
 
 > El repositorio aún no declara una licencia. El código conserva los derechos de su autor hasta que se elija una licencia explícita.

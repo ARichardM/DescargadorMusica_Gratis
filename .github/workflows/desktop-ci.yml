@@ -1,0 +1,36 @@
+name: Desktop CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/desktop/**", "tests/desktop/**", ".github/workflows/desktop-ci.yml"]
+  pull_request:
+    paths: ["apps/desktop/**", "tests/desktop/**", ".github/workflows/desktop-ci.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/desktop/requirements.txt
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r apps/desktop/requirements.txt pip-audit
+      - name: Auditar dependencias
+        run: python -m pip_audit -r apps/desktop/requirements.txt
+      - name: Validar código Python
+        run: python -m compileall -q apps/desktop
+      - name: Ejecutar pruebas
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = (Resolve-Path "apps/desktop").Path
+          python -m unittest discover -s tests/desktop -v

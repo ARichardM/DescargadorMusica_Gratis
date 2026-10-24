@@ -37,7 +37,7 @@ otra vez. También puedes hacerlo manualmente desde esta carpeta:
 También se crea **ABRIR DESCARGADOR** dentro de la carpeta del proyecto, junto al
 archivo `.bat`. Los accesos directos muestran el logo y abren directamente la
 interfaz sin una consola; el `.bat` conserva el icono genérico de Windows. Los recursos del
-logo están en `assets/` (SVG, PNG e ICO); `generar_logo.py` permite regenerarlos.
+logo están en `apps/desktop/assets/` (SVG, PNG e ICO); `apps/desktop/generar_logo.py` permite regenerarlos.
 
 La interfaz organiza los enlaces y el progreso a la izquierda, y las opciones a la
 derecha. Los botones de descarga y cancelación permanecen visibles si reduces la
@@ -293,7 +293,7 @@ Si YouTube cambia y las descargas dejan de funcionar, cierra el programa y ejecu
 Ejecución manual:
 
 ```powershell
-.\.venv\Scripts\python.exe descargador_gui.py
+.\.venv\Scripts\python.exe apps\desktop\descargador_gui.py
 ```
 
 Los scripts originales se conservan para poder seguir usándolos por separado.

@@ -11,13 +11,14 @@ Gracias por ayudar a mejorar MusicBox.
 ## Comprobaciones
 
 ```powershell
-cd android-app
+cd apps/android
 .\gradlew.bat testPreviewUnitTest assemblePreview
 ```
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile musicbox_desktop.py musicbox_cloud.py
-.\.venv\Scripts\python.exe -m unittest discover -v
+$env:PYTHONPATH = "apps/desktop"
+.\.venv\Scripts\python.exe -m py_compile apps/desktop/musicbox_desktop.py apps/desktop/musicbox_cloud.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests/desktop -v
 ```
 
 Indica qué cambió, cómo lo verificaste y si afecta Android, Windows o la sincronización.
