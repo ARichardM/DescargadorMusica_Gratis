@@ -19,6 +19,7 @@ novela_mushoku/
 *.ogg
 *.aac
 *.mkv
+*.apk
 
 # Binarios externos: instalar FFmpeg/WebView2 por separado.
 *.exe

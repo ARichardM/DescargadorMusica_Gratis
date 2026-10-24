@@ -20,8 +20,11 @@ public class PlaylistManager {
     private final File storageFile;
     private final Map<String, List<String>> playlists = new HashMap<>();
     private final Map<String, SearchResult> onlineTracks = new HashMap<>();
+    private final Map<String, String> descriptions = new HashMap<>();
     private final Set<String> autoDownloadPlaylists = new HashSet<>();
     private Runnable changeListener;
+    public interface AutoDownloadListener { void onTrackAdded(String playlistName, SearchResult track); }
+    private AutoDownloadListener autoDownloadListener;
 
     private PlaylistManager(Context context) {
         this.storageFile = new File(context.getFilesDir(), "playlists.json");
@@ -42,6 +45,7 @@ public class PlaylistManager {
     private void load() {
         playlists.clear();
         onlineTracks.clear();
+        descriptions.clear();
         autoDownloadPlaylists.clear();
         if (!storageFile.exists()) return;
         try (FileInputStream fis = new FileInputStream(storageFile)) {
@@ -78,6 +82,14 @@ public class PlaylistManager {
             }
             JSONArray auto = root.optJSONArray("autoDownload");
             if (auto != null) for (int i = 0; i < auto.length(); i++) autoDownloadPlaylists.add(auto.getString(i));
+            JSONObject descriptionsRoot = root.optJSONObject("descriptions");
+            if (descriptionsRoot != null) {
+                JSONArray descriptionNames = descriptionsRoot.names();
+                if (descriptionNames != null) for (int i = 0; i < descriptionNames.length(); i++) {
+                    String name = descriptionNames.getString(i);
+                    descriptions.put(name, descriptionsRoot.optString(name, ""));
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -94,6 +106,7 @@ public class PlaylistManager {
     }
 
     public synchronized void setChangeListener(Runnable listener) { changeListener = listener; }
+    public synchronized void setAutoDownloadListener(AutoDownloadListener listener) { autoDownloadListener = listener; }
 
     public synchronized JSONObject exportJson() {
         JSONObject root = new JSONObject();
@@ -111,6 +124,7 @@ public class PlaylistManager {
             }
             root.put("onlineTracks", tracks);
             root.put("autoDownload", new JSONArray(autoDownloadPlaylists));
+            root.put("descriptions", new JSONObject(descriptions));
         } catch (Exception ignored) {}
         return root;
     }
@@ -158,10 +172,31 @@ public class PlaylistManager {
         if ("Favoritos".equalsIgnoreCase(name)) return false;
         if (playlists.remove(name) != null) {
             autoDownloadPlaylists.remove(name);
+            descriptions.remove(name);
             save();
             return true;
         }
         return false;
+    }
+
+    public synchronized String getDescription(String name) { return descriptions.getOrDefault(name, ""); }
+
+    public synchronized boolean updatePlaylistDetails(String oldName, String newName, String description) {
+        if (oldName == null || !playlists.containsKey(oldName)) return false;
+        String cleanName = newName == null ? "" : newName.trim();
+        if ("Favoritos".equals(oldName)) cleanName = oldName;
+        if (cleanName.isEmpty() || (!oldName.equals(cleanName) && playlists.containsKey(cleanName))) return false;
+        if (!oldName.equals(cleanName)) {
+            List<String> songs = playlists.remove(oldName);
+            playlists.put(cleanName, songs);
+            if (autoDownloadPlaylists.remove(oldName)) autoDownloadPlaylists.add(cleanName);
+            String previousDescription = descriptions.remove(oldName);
+            if (previousDescription != null && !previousDescription.isEmpty()) descriptions.put(cleanName, previousDescription);
+        }
+        String cleanDescription = description == null ? "" : description.trim();
+        if (cleanDescription.isEmpty()) descriptions.remove(cleanName); else descriptions.put(cleanName, cleanDescription);
+        save();
+        return true;
     }
 
     public synchronized boolean addOnlineTrack(String playlistName, SearchResult result) {
@@ -169,6 +204,8 @@ public class PlaylistManager {
         onlineTracks.put(result.getId(), result);
         boolean added = addSongToPlaylist(playlistName, "youtube:" + result.getId());
         save();
+        if (added && autoDownloadPlaylists.contains(playlistName) && autoDownloadListener != null)
+            autoDownloadListener.onTrackAdded(playlistName, result);
         return added;
     }
 

@@ -5,6 +5,7 @@ import android.media.MediaScannerConnection;
 import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import cl.arichard.descargador.DescargadorApp;
 import cl.arichard.descargador.data.PlaylistManager;
 import cl.arichard.descargador.model.SearchResult;
@@ -39,13 +40,13 @@ public final class SongActions {
         List<String> names = manager.getPlaylistNames();
         List<String> options = new ArrayList<>(names);
         options.add("＋ Nueva playlist");
-        new AlertDialog.Builder(activity).setTitle("Agregar " + songs.size() + " canción" + (songs.size() > 1 ? "es" : "") + " a playlist")
+        new MaterialAlertDialogBuilder(activity).setTitle("Agregar " + songs.size() + " canción" + (songs.size() > 1 ? "es" : "") + " a playlist")
                 .setItems(options.toArray(new String[0]), (d, which) -> {
                     if (which == names.size()) {
                         EditText input = new EditText(activity);
                         input.setHint("Nombre de la playlist");
                         input.setSingleLine(true);
-                        AlertDialog dialog = new AlertDialog.Builder(activity).setTitle("Nueva playlist")
+                        AlertDialog dialog = new MaterialAlertDialogBuilder(activity).setTitle("Nueva playlist")
                                 .setView(input).setPositiveButton("Crear y agregar", null)
                                 .setNegativeButton("Cancelar", null).create();
                         dialog.setOnShowListener(v -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
@@ -105,12 +106,12 @@ public final class SongActions {
         List<String> labels = new ArrayList<>();
         for (File file : targets) labels.add(file.getName() + "\n" + file.getAbsolutePath());
         labels.add("＋ Nueva carpeta en " + downloads.getName());
-        new AlertDialog.Builder(activity).setTitle(song.isOnline() ? "Descargar en carpeta" : "Copiar a carpeta")
+        new MaterialAlertDialogBuilder(activity).setTitle(song.isOnline() ? "Descargar en carpeta" : "Copiar a carpeta")
                 .setItems(labels.toArray(new String[0]), (d, which) -> {
                     if (which < targets.size()) { copyToFolder(activity, song, targets.get(which), changed); return; }
                     EditText input = new EditText(activity);
                     input.setHint("Nombre de la carpeta"); input.setSingleLine(true);
-                    AlertDialog dialog = new AlertDialog.Builder(activity).setTitle("Nueva carpeta")
+                    AlertDialog dialog = new MaterialAlertDialogBuilder(activity).setTitle("Nueva carpeta")
                             .setView(input).setPositiveButton("Crear y agregar", null)
                             .setNegativeButton("Cancelar", null).create();
                     dialog.setOnShowListener(v -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
@@ -171,7 +172,7 @@ public final class SongActions {
     public static void delete(Activity activity, Song song, Runnable changed) {
         String description = song.isOnline() ? "Se quitará de tus playlists y favoritos."
                 : "Se eliminará el archivo del dispositivo y se quitará de tus playlists.";
-        new AlertDialog.Builder(activity).setTitle("Eliminar «" + song.getTitle() + "»")
+        new MaterialAlertDialogBuilder(activity).setTitle("Eliminar «" + song.getTitle() + "»")
                 .setMessage(description).setNegativeButton("Cancelar", null)
                 .setPositiveButton("Eliminar", (d, which) -> DescargadorApp.IO.execute(() -> {
                     try {

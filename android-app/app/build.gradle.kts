@@ -17,6 +17,18 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
+    signingConfigs {
+        create("releaseFromEnvironment") {
+            val keyStorePath = System.getenv("MUSICBOX_KEYSTORE_PATH")
+            if (!keyStorePath.isNullOrBlank()) {
+                storeFile = file(keyStorePath)
+                storePassword = System.getenv("MUSICBOX_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MUSICBOX_KEY_ALIAS")
+                keyPassword = System.getenv("MUSICBOX_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         create("preview") {
             initWith(getByName("debug"))
@@ -26,6 +38,9 @@ android {
         }
         release {
             isMinifyEnabled = false
+            if (!System.getenv("MUSICBOX_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("releaseFromEnvironment")
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

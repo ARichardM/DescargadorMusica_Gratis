@@ -11,14 +11,11 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import cl.arichard.descargador.R;
 import cl.arichard.descargador.data.PlaylistManager;
-import cl.arichard.descargador.data.SearchHistoryManager;
 import cl.arichard.descargador.model.Song;
 import cl.arichard.descargador.player.PlayerManager;
 import cl.arichard.descargador.util.CoverArtLoader;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder> {
@@ -39,7 +36,6 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     private boolean selectionMode = false;
 
     private String currentQuery = "";
-    private int currentFilterMode = 0; // 0=All, 1=Favorites, 2=Recent, 3=A-Z
 
     public SongAdapter(Context context, List<Song> songs, OnSongClickListener listener) {
         this.context = context;
@@ -56,11 +52,6 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         applyFiltersAndSort();
     }
 
-    public void setFilterMode(int mode) {
-        this.currentFilterMode = mode;
-        applyFiltersAndSort();
-    }
-
     public void filter(String query) {
         this.currentQuery = query != null ? query.trim().toLowerCase() : "";
         applyFiltersAndSort();
@@ -69,22 +60,7 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     private void applyFiltersAndSort() {
         List<Song> before = new ArrayList<>(displayedList);
         displayedList.clear();
-        PlaylistManager pm = PlaylistManager.getInstance(context);
-
-        List<Song> source = originalList;
-        if (currentFilterMode == 1) {
-            source = new ArrayList<>();
-            for (Song recent : SearchHistoryManager.getInstance(context).getRecentPlayedSongs()) {
-                for (Song available : originalList) {
-                    if (available.getPath().equals(recent.getPath())) {
-                        source.add(available);
-                        break;
-                    }
-                }
-            }
-        }
-
-        for (Song s : source) {
+        for (Song s : originalList) {
             // Check text query filter
             if (!currentQuery.isEmpty()) {
                 boolean matchTitle = s.getTitle().toLowerCase().contains(currentQuery);
@@ -96,11 +72,6 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
             }
 
             displayedList.add(s);
-        }
-
-        // Apply sorting (mode 2 or legacy mode 3 = A - Z)
-        if (currentFilterMode == 2 || currentFilterMode == 3) {
-            Collections.sort(displayedList, (a, b) -> a.getTitle().compareToIgnoreCase(b.getTitle()));
         }
 
         List<Song> after = new ArrayList<>(displayedList);

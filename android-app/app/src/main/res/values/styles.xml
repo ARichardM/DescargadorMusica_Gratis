@@ -4,26 +4,94 @@
         <item name="colorPrimary">@color/accent</item>
         <item name="colorPrimaryVariant">@color/accent</item>
         <item name="colorSecondary">@color/accent</item>
+        <item name="colorSurface">@color/bg_card</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnBackground">@color/text_primary</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="colorControlNormal">@color/text_secondary</item>
+        <item name="colorControlActivated">@color/accent</item>
         <item name="android:statusBarColor">@color/bg_primary</item>
         <item name="android:navigationBarColor">@color/bg_primary</item>
         <item name="android:windowBackground">@color/bg_primary</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="android:windowAnimationStyle">@style/WindowAnim</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.MusicBox.Dialog</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.MusicBox.Dialog</item>
+        <item name="popupMenuStyle">@style/Widget.MusicBox.PopupMenu</item>
+        <item name="panelMenuListTheme">@style/ThemeOverlay.MusicBox.PopupMenu</item>
+    </style>
+
+    <style name="ThemeOverlay.MusicBox.Dialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorSurface">@color/bg_card</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:colorBackground">@color/bg_card</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorAlertDialogListItem">@color/text_primary</item>
         <item name="buttonBarPositiveButtonStyle">@style/Widget.MusicBox.DialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/Widget.MusicBox.DialogButton</item>
         <item name="buttonBarNeutralButtonStyle">@style/Widget.MusicBox.DialogButton</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.MusicBox.Dialog.Title</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.MusicBox.Dialog</item>
+        <item name="editTextStyle">@style/Widget.MusicBox.DialogEditText</item>
     </style>
-    <style name="Widget.MusicBox.DialogButton" parent="Widget.AppCompat.Button.Borderless">
-        <item name="android:background">@drawable/bg_text_button</item>
+
+    <style name="ShapeAppearance.MusicBox.Dialog" parent="ShapeAppearance.MaterialComponents.MediumComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">22dp</item>
+    </style>
+
+    <style name="TextAppearance.MusicBox.Dialog.Title" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Widget.MusicBox.DialogButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="android:backgroundTint">@android:color/transparent</item>
         <item name="android:textColor">@color/accent</item>
         <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
         <item name="android:gravity">center</item>
-        <item name="android:minWidth">84dp</item>
+        <item name="android:minWidth">64dp</item>
         <item name="android:minHeight">44dp</item>
-        <item name="android:layout_margin">4dp</item>
         <item name="android:paddingLeft">12dp</item>
         <item name="android:paddingRight">12dp</item>
+        <item name="rippleColor">@color/dialog_button_ripple</item>
+    </style>
+
+    <style name="Widget.MusicBox.DialogEditText" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+        <item name="android:backgroundTint">@color/accent</item>
+        <item name="android:paddingLeft">16dp</item>
+        <item name="android:paddingRight">16dp</item>
+        <item name="android:minHeight">52dp</item>
+    </style>
+
+    <style name="ThemeOverlay.MusicBox.PopupMenu" parent="ThemeOverlay.AppCompat">
+        <item name="android:colorBackground">@color/bg_elevated</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="colorControlNormal">@color/text_primary</item>
+        <item name="textAppearanceLargePopupMenu">@style/TextAppearance.MusicBox.PopupMenu</item>
+        <item name="textAppearanceSmallPopupMenu">@style/TextAppearance.MusicBox.PopupMenu</item>
+    </style>
+
+    <style name="Widget.MusicBox.PopupMenu" parent="Widget.AppCompat.PopupMenu">
+        <item name="android:popupBackground">@drawable/bg_popup_menu</item>
+        <item name="android:dropDownVerticalOffset">4dp</item>
+        <item name="android:dropDownHorizontalOffset">0dp</item>
+    </style>
+
+    <style name="TextAppearance.MusicBox.PopupMenu" parent="TextAppearance.AppCompat.Body1">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">16sp</item>
     </style>
     <style name="Theme.MusicBox.NowPlaying" parent="Theme.MusicBox">
         <item name="android:windowIsTranslucent">true</item>

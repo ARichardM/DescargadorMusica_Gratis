@@ -1,127 +1,40 @@
 package cl.arichard.descargador.adapter;
-
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
-import androidx.appcompat.widget.SwitchCompat;
-import cl.arichard.descargador.data.PlaylistManager;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import cl.arichard.descargador.R;
+import cl.arichard.descargador.data.PlaylistManager;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.PlaylistViewHolder> {
-
-    public interface OnPlaylistClickListener {
-        void onPlaylistClick(String playlistName);
-        void onDeleteClick(String playlistName);
-        void onAutoDownloadChanged(String playlistName, boolean enabled);
-    }
-
-    private final List<cl.arichard.descargador.model.Song> library = new ArrayList<>();
-    public void setLibrary(List<cl.arichard.descargador.model.Song> songs) {
-        library.clear(); library.addAll(songs); notifyDataSetChanged();
-    }
-    private final Context context;
-    private final List<String> originalNames = new ArrayList<>();
-    private final List<String> displayedNames = new ArrayList<>();
-    private final OnPlaylistClickListener listener;
-
-    public PlaylistAdapter(Context context, List<String> playlistNames, OnPlaylistClickListener listener) {
-        this.context = context;
-        this.listener = listener;
-        updatePlaylists(playlistNames);
-    }
-
-    public void updatePlaylists(List<String> names) {
-        originalNames.clear();
-        if (names != null) {
-            originalNames.addAll(names);
-        }
-        filter("");
-    }
-
-    public void filter(String query) {
-        displayedNames.clear();
-        String q = query != null ? query.trim().toLowerCase() : "";
-        for (String name : originalNames) {
-            if (q.isEmpty() || name.toLowerCase().contains(q)) {
-                displayedNames.add(name);
-            }
-        }
-        notifyDataSetChanged();
-    }
-
-    public int getDisplayedCount() { return displayedNames.size(); }
-
-    @NonNull @Override
-    public PlaylistViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(context).inflate(R.layout.item_playlist, parent, false);
-        return new PlaylistViewHolder(v);
-    }
-
-    @Override
-    public void onBindViewHolder(@NonNull PlaylistViewHolder holder, int position) {
-        String name = displayedNames.get(position);
-        holder.txtName.setText(name);
-
-        boolean isFav = "Favoritos".equals(name);
-        holder.btnDelete.setVisibility(isFav ? View.GONE : View.VISIBLE);
-        List<cl.arichard.descargador.model.Song> songs = PlaylistManager.getInstance(context).resolveSongs(name, library);
-        holder.collage.setSongs(songs);
-        holder.txtCount.setText(songs.size() + (songs.size() == 1 ? " canción" : " canciones"));
-        holder.autoDownload.setChecked(PlaylistManager.getInstance(context).isAutoDownloadEnabled(name));
-        holder.autoDownload.setOnClickListener(v -> {
-            boolean checked = holder.autoDownload.isChecked();
-            if (!checked) {
-                holder.autoDownload.setChecked(true);
-                new androidx.appcompat.app.AlertDialog.Builder(context)
-                        .setTitle("¿Desactivar descarga automática?")
-                        .setMessage("Si desactivas la auto-descarga, las canciones nuevas no se descargarán automáticamente al agregarse.\nLas ya descargadas se mantendrán.")
-                        .setPositiveButton("Desactivar", (dialog, which) -> {
-                            holder.autoDownload.setChecked(false);
-                            PlaylistManager.getInstance(context).setAutoDownloadEnabled(name, false);
-                            if (listener != null) listener.onAutoDownloadChanged(name, false);
-                        })
-                        .setNegativeButton("Cancelar", null)
-                        .show();
-            } else {
-                PlaylistManager.getInstance(context).setAutoDownloadEnabled(name, true);
-                if (listener != null) listener.onAutoDownloadChanged(name, true);
-            }
-        });
-
-        holder.itemView.setOnClickListener(v -> {
-            if (listener != null) listener.onPlaylistClick(name);
-        });
-
-        holder.btnDelete.setOnClickListener(v -> {
-            if (listener != null) listener.onDeleteClick(name);
-        });
-        cl.arichard.descargador.util.SafeTap.install(holder.btnDelete);
-        cl.arichard.descargador.util.SafeTap.install(holder.autoDownload);
-        cl.arichard.descargador.util.SafeTap.installRowTap(holder.itemView);
-    }
-
-    @Override public int getItemCount() { return displayedNames.size(); }
-
-    static class PlaylistViewHolder extends RecyclerView.ViewHolder {
-        TextView txtName, txtCount;
-        ImageView btnDelete;
-        cl.arichard.descargador.util.CoverCollageView collage;
-        SwitchCompat autoDownload;
-
-        public PlaylistViewHolder(@NonNull View itemView) {
-            super(itemView);
-            txtName = itemView.findViewById(R.id.txtPlaylistName);
-            collage = itemView.findViewById(R.id.playlistCollage);
-            txtCount = itemView.findViewById(R.id.txtPlaylistCount);
-            btnDelete = itemView.findViewById(R.id.btnDeletePlaylist);
-            autoDownload = itemView.findViewById(R.id.switchAutoDownload);
-        }
-    }
+public class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.Holder> {
+ public interface OnPlaylistClickListener { void onPlaylistClick(String name); void onDeleteClick(String name, View anchor); void onAutoDownloadChanged(String name, boolean enabled); }
+ private final Context context; private final OnPlaylistClickListener listener;
+ private final List<cl.arichard.descargador.model.Song> library=new ArrayList<>();
+ private final List<String> original=new ArrayList<>(), displayed=new ArrayList<>();
+ public PlaylistAdapter(Context c,List<String> names,OnPlaylistClickListener l){context=c;listener=l;updatePlaylists(names);}
+ public void setLibrary(List<cl.arichard.descargador.model.Song> songs){library.clear();library.addAll(songs);notifyDataSetChanged();}
+ public void updatePlaylists(List<String> names){original.clear();if(names!=null)original.addAll(names);filter("");}
+ public void filter(String query){displayed.clear();String q=query==null?"":query.trim().toLowerCase();for(String n:original)if(q.isEmpty()||n.toLowerCase().contains(q))displayed.add(n);notifyDataSetChanged();}
+ public int getDisplayedCount(){return displayed.size();}
+ @NonNull @Override public Holder onCreateViewHolder(@NonNull ViewGroup p,int t){return new Holder(LayoutInflater.from(context).inflate(R.layout.item_playlist,p,false));}
+ @Override public void onBindViewHolder(@NonNull Holder h,int position){
+  String name=displayed.get(position);PlaylistManager pm=PlaylistManager.getInstance(context);
+  List<cl.arichard.descargador.model.Song> songs=pm.resolveSongs(name,library);
+  h.name.setText(name);h.collage.setSongs(songs);h.count.setText(songs.size()+(songs.size()==1?" canción":" canciones"));
+  String description=pm.getDescription(name);h.description.setText(description);h.description.setVisibility(description.isEmpty()?View.GONE:View.VISIBLE);
+  h.itemView.setOnClickListener(v->{if(listener!=null)listener.onPlaylistClick(name);});
+  h.more.setOnClickListener(v->{if(listener!=null)listener.onDeleteClick(name,v);});
+  cl.arichard.descargador.util.SafeTap.install(h.more);cl.arichard.descargador.util.SafeTap.installRowTap(h.itemView);
+ }
+ @Override public int getItemCount(){return displayed.size();}
+ static class Holder extends RecyclerView.ViewHolder{
+  final TextView name,count,description;final ImageView more;final cl.arichard.descargador.util.CoverCollageView collage;
+  Holder(View v){super(v);name=v.findViewById(R.id.txtPlaylistName);count=v.findViewById(R.id.txtPlaylistCount);description=v.findViewById(R.id.txtPlaylistDescription);more=v.findViewById(R.id.btnPlaylistMore);collage=v.findViewById(R.id.playlistCollage);}
+ }
 }

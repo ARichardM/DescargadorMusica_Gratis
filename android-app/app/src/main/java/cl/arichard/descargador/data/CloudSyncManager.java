@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Build;
+import android.provider.Settings;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -24,6 +26,7 @@ public final class CloudSyncManager {
     private ListenerRegistration registration;
     private JSONObject lastRoot = new JSONObject();
     private boolean applying;
+    private boolean deviceRegistered;
     private final Runnable pendingUpload = this::uploadNow;
 
     public CloudSyncManager(Context context, Runnable uiChanged) {
@@ -53,6 +56,8 @@ public final class CloudSyncManager {
             if (payload == null || payload.isEmpty()) return;
             try {
                 JSONObject root = new JSONObject(payload); lastRoot = root;
+                context.getSharedPreferences("musicbox_cloud", Context.MODE_PRIVATE).edit()
+                        .putString("devices_json", root.optJSONObject("devices") == null ? "{}" : root.optJSONObject("devices").toString()).apply();
                 applying = true;
                 if (root.has("playlists")) playlists.importJson(root.optJSONObject("playlists"));
                 if (root.has("history")) history.importJson(root.optJSONObject("history"));
@@ -63,6 +68,7 @@ public final class CloudSyncManager {
                 }
                 applying = false;
                 if (uiChanged != null) uiChanged.run();
+                if (!deviceRegistered) { deviceRegistered = true; scheduleUpload(); }
             } catch (Exception ignored) { applying = false; }
         });
     }
@@ -85,6 +91,17 @@ public final class CloudSyncManager {
             if (preferences == null) preferences = new JSONObject();
             preferences.put("darkMode", prefs.getBoolean("dark_mode", true));
             root.put("preferences", preferences);
+            JSONObject devices = root.optJSONObject("devices");
+            if (devices == null) devices = new JSONObject();
+            String deviceId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+            JSONObject currentDevice = new JSONObject();
+            currentDevice.put("name", Build.MANUFACTURER + " " + Build.MODEL);
+            currentDevice.put("platform", "Android");
+            currentDevice.put("lastSeen", System.currentTimeMillis());
+            devices.put(deviceId == null ? "android" : deviceId, currentDevice);
+            root.put("devices", devices);
+            context.getSharedPreferences("musicbox_cloud", Context.MODE_PRIVATE).edit()
+                    .putString("devices_json", devices.toString()).apply();
             Map<String, Object> update = new HashMap<>(); update.put("payload", root.toString());
             document.set(update);
         } catch (Exception ignored) {}

@@ -79,7 +79,7 @@ public class FolderAdapter extends RecyclerView.Adapter<FolderAdapter.FolderView
             boolean checked = holder.autoDownload.isChecked();
             if (!checked) {
                 holder.autoDownload.setChecked(true);
-                new androidx.appcompat.app.AlertDialog.Builder(context)
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(context)
                         .setTitle("¿Desactivar descarga automática?")
                         .setMessage("Si desactivas la auto-descarga, las canciones nuevas no se descargarán automáticamente al agregarse.\nLas ya descargadas se mantendrán.")
                         .setPositiveButton("Desactivar", (dialog, which) -> {

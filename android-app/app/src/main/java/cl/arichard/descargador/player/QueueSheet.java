@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -187,7 +188,7 @@ public final class QueueSheet implements PlayerManager.PlaybackListener {
             @Override public void afterTextChanged(Editable s) {}
         });
         filter.run();
-        new AlertDialog.Builder(activity).setTitle(choices.isEmpty() ? "Agrega música o guarda canciones en una playlist" : "Agregar a la cola")
+        new MaterialAlertDialogBuilder(activity).setTitle(choices.isEmpty() ? "Agrega música o guarda canciones en una playlist" : "Agregar a la cola")
                 .setView(content).setNegativeButton("Cancelar", null).setPositiveButton("Agregar", (d, which) -> {
                     for (Song song : choices) if (selected.contains(song.getPath())) player.enqueue(song, false);
                 }).show();

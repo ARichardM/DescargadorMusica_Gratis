@@ -51,6 +51,7 @@ public class ImageLoader {
             imageView.setImageBitmap(cached);
             return;
         }
+        imageView.setImageDrawable(new ShimmerDrawable(imageView.getContext()));
 
         executor.execute(() -> {
             Bitmap bitmap = downloadBitmap(url);

@@ -15,6 +15,9 @@ import threading
 from urllib.parse import parse_qs, urlsplit
 import hashlib
 import random
+import platform
+import time
+import uuid
 
 from PySide6.QtCore import QObject, Property, QSettings, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QIcon
@@ -97,6 +100,7 @@ class MusicBoxBridge(QObject):
     downloadingIdsChanged = Signal()
     autoDownloadChanged = Signal()
     playlistsChanged = Signal()
+    devicesChanged = Signal()
     _searchFinished = Signal(object, str)
     _downloadEvent = Signal(object)
     _streamReady = Signal(object, str)
@@ -123,6 +127,8 @@ class MusicBoxBridge(QObject):
             self._play_counts = {}
         self._recorded_source = ""
         self._cloud = FirebaseDesktopClient(self._settings.value("firebaseRefreshToken", "", str))
+        self._device_id = self._settings.value("deviceId", "", str) or uuid.uuid4().hex
+        self._settings.setValue("deviceId", self._device_id)
         self._user = {}
         self._auth_busy = bool(self._cloud.refresh_token)
         self._auth_error = ""
@@ -166,6 +172,13 @@ class MusicBoxBridge(QObject):
         except (ValueError, TypeError):
             self._online_tracks = {}
         self._auto_download_playlists = set(self._settings.value("autoDownloadPlaylists", [], list) or [])
+        try:
+            self._playlist_descriptions = json.loads(self._settings.value("playlistDescriptions", "{}", str) or "{}")
+        except (ValueError, TypeError):
+            self._playlist_descriptions = {}
+        self._merge_favorites_sources()
+        self._save_playlists()
+        self._settings.setValue("favorites", list(self._favorites))
         self._player.positionChanged.connect(lambda _: self.playerChanged.emit())
         self._player.durationChanged.connect(lambda _: self.playerChanged.emit())
         self._player.playbackStateChanged.connect(self._playback_state_changed)
@@ -194,7 +207,6 @@ class MusicBoxBridge(QObject):
     def playlists(self):
         result = []
         for name, keys in self._playlists.items():
-            if name == "Favoritos": continue
             thumb = ""
             for k in keys:
                 if k in self._online_tracks:
@@ -209,7 +221,9 @@ class MusicBoxBridge(QObject):
                 "name": name,
                 "count": len(keys),
                 "subtitle": f"{len(keys)} canción{'es' if len(keys) != 1 else ''}",
+                "description": self._playlist_descriptions.get(name, ""),
                 "thumbnail": thumb,
+                "isFavorites": name == "Favoritos",
                 "autoDownload": name in self._auto_download_playlists or self.isAutoDownload(f"playlist:{name}")
             })
         return sorted(result, key=lambda x: x["name"].casefold())
@@ -330,33 +344,39 @@ class MusicBoxBridge(QObject):
 
     @Slot(str, result=bool)
     def isAutoDownload(self, section):
+        if section == "favorites":
+            return "Favoritos" in self._auto_download_playlists
         if section.startswith("playlist:"):
             name = section.split("playlist:", 1)[1]
-            return name in self._auto_download_playlists or self._settings.value(f"autoDownload/{section}", False, bool)
-        return self._settings.value(f"autoDownload/{section}", False, bool)
+            return name in self._auto_download_playlists
+        return False
 
     @Slot(str, bool)
     def setAutoDownload(self, section, enabled):
-        self._settings.setValue(f"autoDownload/{section}", enabled)
-        if section.startswith("playlist:"):
-            name = section.split("playlist:", 1)[1]
+        name = "Favoritos" if section == "favorites" else (section.split("playlist:", 1)[1] if section.startswith("playlist:") else "")
+        if name:
             if enabled:
                 self._auto_download_playlists.add(name)
-                self.downloadAllInPlaylist(name)
             else:
                 self._auto_download_playlists.discard(name)
             self._save_playlists()
             self.playlistsChanged.emit()
-        elif section == "favorites":
-            if enabled:
-                self.downloadAllInFavorites()
         self.autoDownloadChanged.emit()
         self._schedule_cloud_save()
 
     def _save_playlists(self):
+        self._playlists["Favoritos"] = list(self._favorites)
         self._settings.setValue("playlistsData", json.dumps(self._playlists))
         self._settings.setValue("onlineTracksData", json.dumps(self._online_tracks))
         self._settings.setValue("autoDownloadPlaylists", list(self._auto_download_playlists))
+        self._settings.setValue("playlistDescriptions", json.dumps(self._playlist_descriptions))
+
+    def _merge_favorites_sources(self):
+        """Migra datos antiguos y mantiene Favoritos como una única colección."""
+        merged = list(self._playlists.get("Favoritos", []))
+        merged.extend(key for key in self._favorites if key not in merged)
+        self._playlists["Favoritos"] = merged
+        self._favorites = set(merged)
 
     @Slot(str)
     def createPlaylist(self, name):
@@ -375,6 +395,7 @@ class MusicBoxBridge(QObject):
         if name in self._playlists:
             del self._playlists[name]
             self._auto_download_playlists.discard(name)
+            self._playlist_descriptions.pop(name, None)
             self._settings.remove(f"autoDownload/playlist:{name}")
             self._save_playlists()
             self.playlistsChanged.emit()
@@ -382,6 +403,27 @@ class MusicBoxBridge(QObject):
                 self._library_playlist = ""
                 self._apply_library_view()
             self._schedule_cloud_save()
+
+    @Slot(str, str, str, result=bool)
+    def updatePlaylistDetails(self, old_name, new_name, description):
+        old_name, new_name = old_name.strip(), new_name.strip()
+        if old_name not in self._playlists: return False
+        if old_name == "Favoritos": new_name = old_name
+        if not new_name or (new_name == "Favoritos" and old_name != "Favoritos"): return False
+        if new_name != old_name and new_name in self._playlists: return False
+        if new_name != old_name:
+            self._playlists[new_name] = self._playlists.pop(old_name)
+            if old_name in self._auto_download_playlists:
+                self._auto_download_playlists.remove(old_name); self._auto_download_playlists.add(new_name)
+            previous_description = self._playlist_descriptions.pop(old_name, "")
+            if previous_description:
+                self._playlist_descriptions[new_name] = previous_description
+            if self._library_playlist == old_name: self._library_playlist = new_name
+        description = description.strip()
+        if description: self._playlist_descriptions[new_name] = description
+        else: self._playlist_descriptions.pop(new_name, None)
+        self._save_playlists(); self.playlistsChanged.emit(); self._apply_library_view(); self._schedule_cloud_save()
+        return True
 
     @Slot(str, "QVariantMap")
     def addTrackToPlaylist(self, playlist_name, track):
@@ -393,8 +435,11 @@ class MusicBoxBridge(QObject):
         key = path if path else (f"youtube:{vid}" if vid else item.get("url", ""))
         if not key: return
         self._playlists.setdefault(playlist_name, [])
-        if key not in self._playlists[playlist_name]:
+        added = key not in self._playlists[playlist_name]
+        if added:
             self._playlists[playlist_name].append(key)
+            if playlist_name == "Favoritos":
+                self._favorites.add(key)
         if not path and key:
             self._online_tracks[key] = {
                 "id": vid,
@@ -405,8 +450,13 @@ class MusicBoxBridge(QObject):
                 "thumbnail": item.get("thumbnail", ""),
                 "url": item.get("url") or (f"https://www.youtube.com/watch?v={vid}" if vid else "")
             }
+            if playlist_name == "Favoritos":
+                self._online_favorites_meta[key] = dict(self._online_tracks[key])
         self._save_playlists()
-        if (playlist_name in self._auto_download_playlists or self.isAutoDownload(f"playlist:{playlist_name}")) and not path and not item.get("downloaded"):
+        if playlist_name == "Favoritos":
+            self._settings.setValue("favorites", list(self._favorites))
+            self._settings.setValue("onlineFavoritesMeta", json.dumps(self._online_favorites_meta))
+        if added and playlist_name in self._auto_download_playlists and not path and not item.get("downloaded"):
             self.downloadOnlineTrack(item)
         self.playlistsChanged.emit()
         if self._library_playlist == playlist_name:
@@ -418,7 +468,13 @@ class MusicBoxBridge(QObject):
         playlist_name = playlist_name.strip()
         if playlist_name in self._playlists and track_key in self._playlists[playlist_name]:
             self._playlists[playlist_name].remove(track_key)
+            if playlist_name == "Favoritos":
+                self._favorites.discard(track_key)
+                self._online_favorites_meta.pop(track_key, None)
             self._save_playlists()
+            if playlist_name == "Favoritos":
+                self._settings.setValue("favorites", list(self._favorites))
+                self._settings.setValue("onlineFavoritesMeta", json.dumps(self._online_favorites_meta))
             self.playlistsChanged.emit()
             if self._library_playlist == playlist_name:
                 self._apply_library_view()
@@ -491,6 +547,20 @@ class MusicBoxBridge(QObject):
     @Property("QVariantMap", notify=authChanged)
     def user(self): return self._user
 
+    @Property("QVariantList", notify=devicesChanged)
+    def devices(self):
+        devices = self._cloud_snapshot.get("devices", {})
+        if not isinstance(devices, dict): return []
+        rows = []
+        for device_id, value in devices.items():
+            item = dict(value or {})
+            item["id"] = device_id
+            item["current"] = device_id == self._device_id
+            seen = int(item.get("lastSeen", 0) or 0)
+            item["lastSeenText"] = time.strftime("%d/%m/%Y %H:%M", time.localtime(seen / 1000)) if seen else "Sin actividad reciente"
+            rows.append(item)
+        return sorted(rows, key=lambda row: (not row["current"], -int(row.get("lastSeen", 0) or 0)))
+
     @Slot()
     def signInGoogle(self):
         if self._auth_busy:
@@ -529,6 +599,11 @@ class MusicBoxBridge(QObject):
             self._settings.setValue("firebaseRefreshToken", result.get("refresh", ""))
             state = result.get("state") or {}
             self._cloud_snapshot = dict(state)
+            devices = self._cloud_snapshot.get("devices")
+            if not isinstance(devices, dict): devices = {}
+            devices[self._device_id] = {"name": platform.node() or "Este PC", "platform": "Windows", "lastSeen": int(time.time() * 1000)}
+            self._cloud_snapshot["devices"] = devices
+            self.devicesChanged.emit()
             if "darkMode" in state:
                 self._dark_mode = bool(state["darkMode"])
                 self.darkModeChanged.emit()
@@ -561,6 +636,9 @@ class MusicBoxBridge(QObject):
                     self._online_tracks = dict(p_data["onlineTracks"])
                 if "autoDownload" in p_data and isinstance(p_data["autoDownload"], list):
                     self._auto_download_playlists = set(p_data["autoDownload"])
+                if "descriptions" in p_data and isinstance(p_data["descriptions"], dict):
+                    self._playlist_descriptions = dict(p_data["descriptions"])
+                self._merge_favorites_sources()
                 self._save_playlists()
                 self.playlistsChanged.emit()
             self._settings.setValue("lastFirebaseUid", uid)
@@ -593,12 +671,15 @@ class MusicBoxBridge(QObject):
         playlists_export = {
             "playlists": self._playlists,
             "onlineTracks": self._online_tracks,
-            "autoDownload": list(self._auto_download_playlists)
+            "autoDownload": list(self._auto_download_playlists),
+            "descriptions": self._playlist_descriptions,
         }
         state = dict(self._cloud_snapshot)
+        devices = state.get("devices") if isinstance(state.get("devices"), dict) else {}
+        devices[self._device_id] = {"name": platform.node() or "Este PC", "platform": "Windows", "lastSeen": int(time.time() * 1000)}
         state.update({"schema": 1, "darkMode": self._dark_mode,
                       "favorites": sorted(self._favorites), "library": library,
-                      "playlists": playlists_export,
+                      "playlists": playlists_export, "devices": devices,
                       "recentPlayed": self._recent_paths, "recentQueries": self._recent_queries,
                       "playCounts": self._play_counts})
         return state
@@ -717,17 +798,6 @@ class MusicBoxBridge(QObject):
             rows = [row for row in rows if
                     ("Descargas" if str(Path(row["path"]).parent.relative_to(root)) == "."
                      else Path(row["path"]).parent.relative_to(root).parts[0]) == self._library_folder]
-        if self._library_filter == "favorites":
-            rows = [row for row in rows if row.get("path") in self._favorites]
-            for key, meta in list(self._online_favorites_meta.items()):
-                if key in self._favorites and meta.get("url"):
-                    if not self._is_video_downloaded(meta.get("id", ""), meta.get("title", "")):
-                        rows.append(meta)
-        elif self._library_filter == "recent":
-            by_path = {row.get("path"): row for row in rows}
-            rows = [by_path[path] for path in self._recent_paths if path in by_path]
-        elif self._library_filter == "az":
-            rows.sort(key=lambda row: row.get("title", "").casefold())
         # El escaneo ya entrega el orden más reciente primero.
         query = self._library_query.casefold().strip()
         if query:
@@ -743,8 +813,8 @@ class MusicBoxBridge(QObject):
 
     @Slot(str)
     def setLibraryFilter(self, value):
-        self._library_filter = value if value in {"songs", "favorites", "playlists", "recent", "az"} else "songs"
-        if value in {"favorites", "playlists"}:
+        self._library_filter = value if value in {"songs", "playlists"} else "songs"
+        if value == "playlists":
             self._library_folder = ""
         if value != "playlists":
             self._library_playlist = ""
@@ -1008,8 +1078,6 @@ class MusicBoxBridge(QObject):
                 self._play_counts[path] = int(self._play_counts.get(path, 0)) + 1
                 self._settings.setValue("recentPlayed", self._recent_paths)
                 self._settings.setValue("playCounts", json.dumps(self._play_counts))
-                if self._library_filter == "recent":
-                    self._apply_library_view()
                 self.discoveryChanged.emit()
                 self._schedule_cloud_save()
         self.playerChanged.emit()
@@ -1118,6 +1186,9 @@ class MusicBoxBridge(QObject):
                 self._online_favorites_meta[key] = meta
             if self.isAutoDownload("favorites") and item.get("url") and not item.get("downloaded"):
                 self.downloadOnlineTrack(item)
+        self._playlists["Favoritos"] = list(self._favorites)
+        self._save_playlists()
+        self.playlistsChanged.emit()
         self._settings.setValue("favorites", list(self._favorites))
         self._settings.setValue("onlineFavoritesMeta", json.dumps(self._online_favorites_meta))
         if self._user:
@@ -1158,6 +1229,11 @@ class MusicBoxBridge(QObject):
                 meta["favorite"] = True
                 meta["web"] = True
                 self._online_favorites_meta[key] = meta
+            if "Favoritos" in self._auto_download_playlists and self._current.get("url") and not self._current.get("downloaded"):
+                self.downloadOnlineTrack(self._current)
+        self._playlists["Favoritos"] = list(self._favorites)
+        self._save_playlists()
+        self.playlistsChanged.emit()
         self._settings.setValue("favorites", list(self._favorites))
         self._settings.setValue("onlineFavoritesMeta", json.dumps(self._online_favorites_meta))
         if self._user:

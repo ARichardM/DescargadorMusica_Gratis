@@ -21,6 +21,9 @@
     <color name="mini_player_bg">#F0161618</color>
     <color name="mini_player_border">#25FFFFFF</color>
     <color name="search_bg">#1C1C1E</color>
+    <color name="dialog_button_ripple">#300A84FF</color>
+    <color name="skeleton_base">#FF24262B</color>
+    <color name="skeleton_highlight">#FF3A3D44</color>
 
     <!-- Compat aliases -->
     <color name="border_subtle">#38383A</color>

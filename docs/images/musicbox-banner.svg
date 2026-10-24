@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">MusicBox</title><desc id="desc">Tu música, en todos lados</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#05070A"/><stop offset="1" stop-color="#111827"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#36D9FF"/><stop offset="1" stop-color="#0A84FF"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="15" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="1200" height="360" rx="34" fill="url(#bg)"/>
+  <circle cx="1010" cy="30" r="250" fill="#0A84FF" opacity=".09"/><circle cx="180" cy="350" r="210" fill="#36D9FF" opacity=".06"/>
+  <g transform="translate(112 72)" fill="none" stroke="url(#accent)" stroke-width="8" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M108 0 216 58v120l-108 60L0 178V58z"/><path d="m0 58 108 60 108-60M108 118v120"/>
+    <path d="M0 122h18l12-42 17 92 17-70 20 93 18-53h16" stroke-linecap="round"/>
+  </g>
+  <text x="405" y="153" fill="#fff" font-family="Inter,Segoe UI,sans-serif" font-size="76" font-weight="750" letter-spacing="-2">MusicBox</text>
+  <text x="410" y="213" fill="#AAB4C3" font-family="Inter,Segoe UI,sans-serif" font-size="28">Tu música, en todos lados.</text>
+  <g transform="translate(410 250)" font-family="Inter,Segoe UI,sans-serif" font-size="18" fill="#D9E3F0">
+    <rect width="132" height="42" rx="21" fill="#17263A" stroke="#28598E"/><text x="29" y="27">Android</text>
+    <rect x="148" width="126" height="42" rx="21" fill="#17263A" stroke="#28598E"/><text x="179" y="27">Windows</text>
+    <rect x="290" width="156" height="42" rx="21" fill="#17263A" stroke="#28598E"/><text x="319" y="27">Claro · Oscuro</text>
+  </g>
+</svg>

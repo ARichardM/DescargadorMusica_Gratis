@@ -45,6 +45,8 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MusicBox.NowPlaying" />
 
+        <activity android:name=".SettingsActivity" />
+
         <activity
             android:name=".PlayerActivity"
             android:configChanges="orientation|screenSize" />

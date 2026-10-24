@@ -43,6 +43,7 @@ import com.yausername.youtubedl_android.YoutubeDLRequest;
 import com.yausername.youtubedl_android.YoutubeDLResponse;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import cl.arichard.descargador.adapter.FolderAdapter;
 import cl.arichard.descargador.adapter.PlaylistAdapter;
 import cl.arichard.descargador.adapter.SearchResultAdapter;
@@ -99,7 +100,7 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
     private LinearLayout layoutRecentChips, layoutTopCollections, layoutRecentPlaysCards, layoutTopLibraryList;
     private TextView btnClearSearchHistory;
 
-    private ProgressBar searchLoading;
+    private View searchLoading;
     private RecyclerView recyclerSearchResults;
     private SearchResultAdapter searchResultAdapter;
     private LinearLayout cardProgress;
@@ -124,15 +125,11 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
     private androidx.appcompat.widget.SwitchCompat switchLibraryAutoDownload;
     private TextView txtLibraryTitle, txtSongCount;
     private EditText inputSearchLibrary;
-    // Library Filter Views
     private ImageView btnClearLibraryFilter;
-    private View scrollLibraryFilters;
-    private TextView chipFilterAll, chipFilterRecent, chipFilterAZ;
-    private int currentSongFilter = 0; // 0=All, 1=Recent, 2=AZ
-    private int filterAnimationGeneration;
 
-    private TextView chipSongs, chipFavorites, chipFolders, chipPlaylists;
+    private TextView chipSongs, chipFolders, chipPlaylists;
     private RecyclerView recyclerLibrary;
+    private View libraryLoading;
     private SongAdapter songAdapter;
     private FolderAdapter folderAdapter;
     private PlaylistAdapter playlistAdapter;
@@ -148,7 +145,7 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
 
     private SharedPreferences libraryPrefs() { return getSharedPreferences("library_navigation", MODE_PRIVATE); }
     private String libraryPositionKey() {
-        return currentLibraryMode + ":" + currentSubListName + ":" + currentSongFilter + ":" + inputSearchLibrary.getText();
+        return currentLibraryMode + ":" + currentSubListName + ":" + inputSearchLibrary.getText();
     }
     private void saveLibraryPosition() {
         if (!libraryReady || changingLibrary) return;
@@ -159,7 +156,7 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         String key = libraryPositionKey();
         SharedPreferences.Editor edit = libraryPrefs().edit().putInt(key + ":position", position)
                 .putInt(key + ":offset", first == null ? 0 : first.getTop() - recyclerLibrary.getPaddingTop());
-        if ((currentLibraryMode == 0 || currentLibraryMode == 1 || isViewingSubList) && position < songAdapter.getItemCount())
+        if ((currentLibraryMode == 0 || isViewingSubList) && position < songAdapter.getItemCount())
             edit.putString(key + ":anchor", songAdapter.getDisplayedList().get(position).getPath());
         edit.apply();
     }
@@ -181,22 +178,23 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
     private void saveLibraryNavigation() {
         if (!libraryReady) return;
         saveLibraryPosition();
-        libraryPrefs().edit().putInt("mode", currentLibraryMode).putInt("filter", currentSongFilter)
+        libraryPrefs().edit().putInt("mode", currentLibraryMode).remove("filter")
                 .putString("sublist", currentSubListName).putString("query", inputSearchLibrary.getText().toString())
                 .putBoolean("search_tab", currentTabIsSearch).apply();
     }
     private void restoreLibraryNavigation() {
         SharedPreferences prefs = libraryPrefs();
-        int mode = prefs.getInt("mode", 0), filter = prefs.getInt("filter", 0);
+        int mode = prefs.getInt("mode", 0);
         String name = prefs.getString("sublist", ""), query = prefs.getString("query", "");
+        if (mode == 1) { mode = 3; name = "Favoritos"; }
         boolean search = prefs.getBoolean("search_tab", true);
         setLibraryMode(mode);
         if (!name.isEmpty() && (mode == 3 || mode == 2) && PlaylistManager.getInstance(this).getPlaylistNames().contains(name)) showPlaylistSongs(name);
-        else if (!name.isEmpty() && (mode == 2 || mode == 1)) {
+        else if (!name.isEmpty() && mode == 2) {
             List<Song> songs = MusicScanner.groupByFolder(allSongs).get(name);
             if (songs != null) showFolderSongs(name, songs);
         }
-        setSongFilter(filter); inputSearchLibrary.setText(query);
+        inputSearchLibrary.setText(query);
         restoreLibraryPosition();
         if (!search) switchTab(false);
     }
@@ -238,6 +236,8 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         setupNavigation();
         setupSearchTab();
         setupLibraryTab();
+        PlaylistManager.getInstance(this).setAutoDownloadListener((playlist, track) ->
+                runOnUiThread(() -> startDownload(track.getUrl(), track.getTitle(), track.getId())));
         setupMiniPlayer();
         if (!testRuntime) {
             cloudSync = new CloudSyncManager(this, () -> runOnUiThread(() -> {
@@ -271,6 +271,7 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
 
     @Override protected void onDestroy() {
         if (cloudSync != null) cloudSync.stop();
+        PlaylistManager.getInstance(this).setAutoDownloadListener(null);
         super.onDestroy();
     }
 
@@ -333,24 +334,21 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         btnShuffleAll = findViewById(R.id.btnShuffleAll);
         inputSearchLibrary = findViewById(R.id.inputSearchLibrary);
         chipSongs = findViewById(R.id.chipSongs);
-        chipFavorites = findViewById(R.id.chipFavorites);
         chipFolders = findViewById(R.id.chipFolders);
         chipPlaylists = findViewById(R.id.chipPlaylists);
         txtSongCount = findViewById(R.id.txtSongCount);
         recyclerLibrary = findViewById(R.id.recyclerLibrary);
+        libraryLoading = findViewById(R.id.libraryLoading);
         btnNewPlaylist = findViewById(R.id.btnNewPlaylist);
         layoutAutoDownloadPill = findViewById(R.id.layoutAutoDownloadPill);
         switchLibraryAutoDownload = findViewById(R.id.switchLibraryAutoDownload);
-        if (layoutAutoDownloadPill != null && switchLibraryAutoDownload != null) {
-            layoutAutoDownloadPill.setOnClickListener(v -> switchLibraryAutoDownload.performClick());
-        }
         if (switchLibraryAutoDownload != null) {
             switchLibraryAutoDownload.setOnClickListener(v -> {
                 boolean checked = switchLibraryAutoDownload.isChecked();
-                String targetKey = currentLibraryMode == 1 ? "Favoritos" : currentSubListName;
+                String targetKey = currentSubListName;
                 if (!checked) {
                     switchLibraryAutoDownload.setChecked(true);
-                    new androidx.appcompat.app.AlertDialog.Builder(this)
+                    new MaterialAlertDialogBuilder(this)
                             .setTitle("¿Desactivar descarga automática?")
                             .setMessage("Si desactivas la auto-descarga, las canciones nuevas no se descargarán automáticamente al agregarse.\nLas ya descargadas se mantendrán.")
                             .setPositiveButton("Desactivar", (dialog, which) -> {
@@ -361,31 +359,16 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
                             .show();
                 } else {
                     PlaylistManager.getInstance(this).setAutoDownloadEnabled(targetKey, true);
-                    List<Song> songs = PlaylistManager.getInstance(this).resolveSongs(targetKey, allSongs);
-                    for (Song song : songs) {
-                        if (song.isOnline()) {
-                            startDownload("https://www.youtube.com/watch?v=" + song.getVideoId(), song.getTitle(), song.getVideoId());
-                        }
-                    }
                 }
             });
         }
         btnClearLibraryFilter = findViewById(R.id.btnClearLibraryFilter);
-        scrollLibraryFilters = findViewById(R.id.scrollLibraryFilters);
-        chipFilterAll = findViewById(R.id.chipFilterAll);
-        chipFilterRecent = findViewById(R.id.chipFilterRecent);
-        chipFilterAZ = findViewById(R.id.chipFilterAZ);
-
         if (btnClearLibraryFilter != null) {
             btnClearLibraryFilter.setOnClickListener(v -> {
                 inputSearchLibrary.setText("");
                 applyLibraryFilter("");
             });
         }
-
-        if (chipFilterAll != null) chipFilterAll.setOnClickListener(v -> setSongFilter(0));
-        if (chipFilterRecent != null) chipFilterRecent.setOnClickListener(v -> setSongFilter(1));
-        if (chipFilterAZ != null) chipFilterAZ.setOnClickListener(v -> setSongFilter(2));
 
         // Floating Selection Bar
         selectionBar = findViewById(R.id.selectionBar);
@@ -480,14 +463,14 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
             if (cloudSync != null) cloudSync.scheduleUpload();
             AppCompatDelegate.setDefaultNightMode(newDark ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO);
         });
-        btnAccount.setOnClickListener(v -> showAccountDialog());
+        btnAccount.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
     }
 
     private void showAccountDialog() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         String name = user != null && user.getDisplayName() != null ? user.getDisplayName() : "Cuenta de Google";
         String email = user != null && user.getEmail() != null ? user.getEmail() : "";
-        new AlertDialog.Builder(this).setTitle(name).setMessage(email)
+        new MaterialAlertDialogBuilder(this).setTitle(name).setMessage(email)
                 .setNegativeButton("Cancelar", null)
                 .setPositiveButton("Cerrar sesión", (dialog, which) -> {
                     FirebaseAuth.getInstance().signOut();
@@ -580,9 +563,6 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
 
             @Override
             public void onFavoriteChanged(SearchResult result, boolean favorite) {
-                if (favorite && PlaylistManager.getInstance(MainActivity.this).isAutoDownloadEnabled("Favoritos")) {
-                    startDownload(result.getUrl(), result.getTitle(), result.getId());
-                }
             }
 
             @Override
@@ -1041,16 +1021,62 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
     private void showAddOnlineToPlaylistDialog(SearchResult result) {
         List<String> names = PlaylistManager.getInstance(this).getPlaylistNames();
         String[] arr = names.toArray(new String[0]);
-        new AlertDialog.Builder(this).setTitle("Agregar a playlist").setItems(arr, (d, which) -> {
+        new MaterialAlertDialogBuilder(this).setTitle("Agregar a playlist").setItems(arr, (d, which) -> {
             String selected = arr[which];
             PlaylistManager manager = PlaylistManager.getInstance(this);
             boolean added = manager.addOnlineTrack(selected, result);
             Toast.makeText(this, added ? "Agregada a " + selected : "Ya estaba en " + selected, Toast.LENGTH_SHORT).show();
-            if (added && manager.isAutoDownloadEnabled(selected)) {
-                startDownload(result.getUrl(), result.getTitle(), result.getId());
-            }
             searchResultAdapter.notifyDataSetChanged();
         }).setNegativeButton("Cancelar", null).show();
+    }
+
+    private void showPlaylistSettingsMenu(String name, View anchor) {
+        PlaylistManager manager = PlaylistManager.getInstance(this);
+        PopupMenu menu = new PopupMenu(this, anchor);
+        menu.getMenu().add("Editar nombre y descripción").setOnMenuItemClickListener(item -> {
+            showEditPlaylistDialog(name); return true;
+        });
+        boolean auto = manager.isAutoDownloadEnabled(name);
+        menu.getMenu().add(auto ? "Desactivar descarga automática" : "Activar descarga automática")
+                .setOnMenuItemClickListener(item -> {
+                    manager.setAutoDownloadEnabled(name, !auto);
+                    refreshPlaylistsView(); return true;
+                });
+        if (!"Favoritos".equals(name)) menu.getMenu().add("Eliminar playlist").setOnMenuItemClickListener(item -> {
+            new MaterialAlertDialogBuilder(this).setTitle("Eliminar playlist")
+                    .setMessage("¿Eliminar \"" + name + "\"? Las canciones descargadas se conservarán.")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Eliminar", (dialog, which) -> {
+                        manager.deletePlaylist(name); refreshPlaylistsView();
+                    }).show();
+            return true;
+        });
+        menu.show();
+    }
+
+    private void showEditPlaylistDialog(String oldName) {
+        PlaylistManager manager = PlaylistManager.getInstance(this);
+        LinearLayout fields = new LinearLayout(this);
+        fields.setOrientation(LinearLayout.VERTICAL);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        fields.setPadding(pad, 0, pad, 0);
+        EditText name = new EditText(this);
+        name.setHint("Nombre"); name.setSingleLine(true); name.setText(oldName);
+        name.setEnabled(!"Favoritos".equals(oldName));
+        EditText description = new EditText(this);
+        description.setHint("Descripción opcional"); description.setMaxLines(3);
+        description.setText(manager.getDescription(oldName));
+        fields.addView(name); fields.addView(description);
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this).setTitle("Configurar playlist")
+                .setView(fields).setNegativeButton("Cancelar", null).setPositiveButton("Guardar", null).create();
+        dialog.setOnShowListener(v -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button -> {
+            String updated = name.getText().toString().trim();
+            if (!manager.updatePlaylistDetails(oldName, updated, description.getText().toString())) {
+                name.setError("Elige un nombre nuevo y válido"); return;
+            }
+            refreshPlaylistsView(); dialog.dismiss();
+        }));
+        dialog.show();
     }
 
     private void setupLibraryTab() {
@@ -1091,8 +1117,9 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
             }
 
             @Override
-            public void onDeleteClick(String playlistName) {
-                new AlertDialog.Builder(MainActivity.this)
+            public void onDeleteClick(String playlistName, View anchor) {
+                if (anchor != null) { showPlaylistSettingsMenu(playlistName, anchor); return; }
+                new MaterialAlertDialogBuilder(MainActivity.this)
                         .setTitle("Eliminar Playlist")
                         .setMessage("¿Deseas eliminar '" + playlistName + "'?")
                         .setPositiveButton("Eliminar", (d, w) -> {
@@ -1125,7 +1152,6 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         recyclerLibrary.setAdapter(songAdapter);
 
         chipSongs.setOnClickListener(v -> setLibraryMode(0));
-        if (chipFavorites != null) chipFavorites.setOnClickListener(v -> setLibraryMode(1));
         chipFolders.setOnClickListener(v -> setLibraryMode(2));
         chipPlaylists.setOnClickListener(v -> setLibraryMode(3));
 
@@ -1138,7 +1164,7 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         btnBackLibrary.setOnClickListener(v -> setLibraryMode(currentLibraryMode));
 
         btnShuffleAll.setOnClickListener(v -> {
-            List<Song> collection = (currentLibraryMode == 0 || currentLibraryMode == 1 || isViewingSubList) ? songAdapter.getDisplayedList() : allSongs;
+            List<Song> collection = (currentLibraryMode == 0 || isViewingSubList) ? songAdapter.getDisplayedList() : allSongs;
             if (!collection.isEmpty()) {
                 List<Song> shuffled = new ArrayList<>(collection);
                 Collections.shuffle(shuffled);
@@ -1161,58 +1187,12 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
     }
 
 
-    private void setSongFilter(int mode) {
-        saveLibraryPosition();
-        currentSongFilter = mode;
-        TextView[] filters = {chipFilterAll, chipFilterRecent, chipFilterAZ};
-        if (mode >= 0 && mode < filters.length && filters[mode] != null && filters[mode].isLaidOut()) {
-            filters[mode].animate().cancel(); filters[mode].setScaleX(.96f); filters[mode].setScaleY(.96f);
-            filters[mode].animate().scaleX(1).scaleY(1).setDuration(170).start();
-        }
-        int activeText = ContextCompat.getColor(this, R.color.chip_active_text);
-        int inactiveText = ContextCompat.getColor(this, R.color.text_secondary);
-
-        for (int i = 0; i < filters.length; i++) {
-            if (filters[i] != null) {
-                filters[i].setBackgroundResource(mode == i ? R.drawable.bg_chip_active : R.drawable.bg_chip_inactive);
-                filters[i].setTextColor(mode == i ? activeText : inactiveText);
-            }
-        }
-
-        if (songAdapter == null) return;
-        if (recyclerLibrary == null || !recyclerLibrary.isLaidOut() || recyclerLibrary.getAdapter() != songAdapter) {
-            songAdapter.setFilterMode(mode);
-            if (currentLibraryMode == 0 || currentLibraryMode == 1 || isViewingSubList) updateLibraryCounter();
-            return;
-        }
-        final int animation = ++filterAnimationGeneration;
-        recyclerLibrary.animate().cancel();
-        recyclerLibrary.animate().alpha(0.18f).translationY(-6 * getResources().getDisplayMetrics().density)
-                .setDuration(90).setInterpolator(new android.view.animation.AccelerateInterpolator())
-                .withEndAction(() -> {
-                    if (animation != filterAnimationGeneration) return;
-                    RecyclerView.ItemAnimator itemAnimator = recyclerLibrary.getItemAnimator();
-                    recyclerLibrary.setItemAnimator(null);
-                    songAdapter.setFilterMode(mode);
-                    recyclerLibrary.scrollToPosition(0);
-                    recyclerLibrary.setTranslationY(8 * getResources().getDisplayMetrics().density);
-                    if (currentLibraryMode == 0 || currentLibraryMode == 1 || isViewingSubList) updateLibraryCounter();
-                    recyclerLibrary.post(() -> {
-                        if (animation != filterAnimationGeneration) return;
-                        recyclerLibrary.setItemAnimator(itemAnimator);
-                        recyclerLibrary.animate().alpha(1f).translationY(0f).setDuration(190)
-                                .setInterpolator(new android.view.animation.DecelerateInterpolator())
-                                .withEndAction(null).start();
-                    });
-                }).start();
-    }
-
     private void applyLibraryFilter(String query) {
         if (btnClearLibraryFilter != null) {
             btnClearLibraryFilter.setVisibility(query.isEmpty() ? View.GONE : View.VISIBLE);
         }
 
-        if (currentLibraryMode == 0 || currentLibraryMode == 1 || isViewingSubList) {
+        if (currentLibraryMode == 0 || isViewingSubList) {
             if (songAdapter != null) {
                 songAdapter.filter(query);
                 updateLibraryCounter();
@@ -1235,57 +1215,44 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
     private void updateLibraryCounter() {
         if (songAdapter != null && txtSongCount != null) {
             int count = songAdapter.getItemCount();
-            if (currentLibraryMode == 1) {
-                txtSongCount.setText(count + (count == 1 ? " favorita" : " favoritas"));
-            } else {
-                txtSongCount.setText(count + (count == 1 ? " canción" : " canciones"));
-            }
+            txtSongCount.setText(count + (count == 1 ? " canción" : " canciones"));
         }
     }
 
     private void setLibraryMode(int mode) {
         saveLibraryPosition(); changingLibrary = true;
-        currentLibraryMode = Math.max(0, Math.min(3, mode));
+        currentLibraryMode = mode == 1 ? 3 : Math.max(0, Math.min(3, mode));
         currentSubListName = ""; isViewingSubList = false;
         inputSearchLibrary.setText("");
         updateLibraryHeader(); rebuildLibraryContent(); changingLibrary = false; restoreLibraryPosition();
     }
 
     private void updateLibraryHeader() {
-        int filtersVisibility = (currentLibraryMode == 0 || isViewingSubList) ? View.VISIBLE : View.GONE;
-        if (tabLibrary.isLaidOut() && scrollLibraryFilters.getVisibility() != filtersVisibility) {
-            android.transition.AutoTransition transition = new android.transition.AutoTransition();
-            transition.setDuration(220); transition.excludeChildren(R.id.recyclerLibrary, true);
-            android.transition.TransitionManager.beginDelayedTransition((android.view.ViewGroup) tabLibrary, transition);
-        }
         btnBackLibrary.setVisibility(isViewingSubList ? View.VISIBLE : View.GONE);
         String headerTitle = "Mi Música";
         if (isViewingSubList) {
             headerTitle = currentSubListName;
-        } else if (currentLibraryMode == 1) {
-            headerTitle = "Favoritas";
         }
         txtLibraryTitle.setText(headerTitle);
         btnNewPlaylist.setVisibility(currentLibraryMode == 3 && !isViewingSubList ? View.VISIBLE : View.GONE);
         if (switchLibraryAutoDownload != null) {
-            boolean canAutoDl = (currentLibraryMode == 1) || (isViewingSubList && currentLibraryMode == 3);
+            boolean canAutoDl = isViewingSubList && currentLibraryMode == 3;
             if (layoutAutoDownloadPill != null) {
                 layoutAutoDownloadPill.setVisibility(canAutoDl ? View.VISIBLE : View.GONE);
             } else {
                 switchLibraryAutoDownload.setVisibility(canAutoDl ? View.VISIBLE : View.GONE);
             }
             if (canAutoDl) {
-                String targetKey = currentLibraryMode == 1 ? "Favoritos" : currentSubListName;
+                String targetKey = currentSubListName;
                 switchLibraryAutoDownload.setChecked(PlaylistManager.getInstance(this).isAutoDownloadEnabled(targetKey));
             }
         }
-        scrollLibraryFilters.setVisibility(filtersVisibility);
-        TextView[] chips = {chipSongs, chipFavorites, chipFolders, chipPlaylists};
+        TextView[] chips = {chipSongs, chipPlaylists, chipFolders};
+        int[] modes = {0, 3, 2};
         for (int i = 0; i < chips.length; i++) {
-            if (chips[i] != null) {
-                chips[i].setBackgroundResource(i == currentLibraryMode ? R.drawable.bg_chip_active : R.drawable.bg_chip_inactive);
-                chips[i].setTextColor(ContextCompat.getColor(this, i == currentLibraryMode ? R.color.chip_active_text : R.color.text_secondary));
-            }
+            boolean selected = modes[i] == currentLibraryMode;
+            chips[i].setBackgroundResource(selected ? R.drawable.bg_chip_active : R.drawable.bg_chip_inactive);
+            chips[i].setTextColor(ContextCompat.getColor(this, selected ? R.color.chip_active_text : R.color.text_secondary));
         }
     }
 
@@ -1300,10 +1267,6 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
                 if (songs == null) songs = Collections.emptyList();
             }
             songAdapter.updateSongs(songs);
-            if (recyclerLibrary.getAdapter() != songAdapter) recyclerLibrary.setAdapter(songAdapter);
-        } else if (currentLibraryMode == 1) {
-            List<Song> favs = PlaylistManager.getInstance(this).resolveSongs("Favoritos", allSongs);
-            songAdapter.updateSongs(favs);
             if (recyclerLibrary.getAdapter() != songAdapter) recyclerLibrary.setAdapter(songAdapter);
         } else if (currentLibraryMode == 2) {
             folderAdapter.updateFolders(MusicScanner.groupByFolder(allSongs));
@@ -1342,7 +1305,7 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         container.setPadding(pad, pad, pad, pad);
         container.addView(input);
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle("Nueva Playlist")
                 .setView(container)
                 .setPositiveButton("Crear", (d, w) -> {
@@ -1419,12 +1382,12 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
         Song current = PlayerManager.getInstance().getCurrentSong();
         if (current == null) { Toast.makeText(this, "Elige una canción primero", Toast.LENGTH_SHORT).show(); return; }
         int index = -1;
-        if (currentLibraryMode == 0 || currentLibraryMode == 1 || isViewingSubList) {
+        if (currentLibraryMode == 0 || isViewingSubList) {
             List<Song> visible = songAdapter.getDisplayedList();
             for (int i = 0; i < visible.size(); i++) if (current.getPath().equals(visible.get(i).getPath())) { index = i; break; }
         }
         if (index < 0) {
-            inputSearchLibrary.setText(""); setSongFilter(0);
+            inputSearchLibrary.setText("");
             if (current.isOnline()) {
                 String containing = null;
                 for (String name : PlaylistManager.getInstance(this).getPlaylistNames())
@@ -1631,10 +1594,16 @@ public class MainActivity extends AppCompatActivity implements PlayerManager.Pla
 
     private void refreshMusicLibrary() {
         final int request = ++scanGeneration;
+        if (allSongs.isEmpty() && libraryLoading != null) {
+            libraryLoading.setVisibility(View.VISIBLE);
+            recyclerLibrary.setVisibility(View.GONE);
+        }
         DescargadorApp.IO.execute(() -> {
             List<Song> songs = MusicScanner.scanAllMusic(this);
             runOnUiThread(() -> {
                 if (request != scanGeneration || isFinishing() || isDestroyed()) return;
+                if (libraryLoading != null) libraryLoading.setVisibility(View.GONE);
+                recyclerLibrary.setVisibility(View.VISIBLE);
                 saveLibraryPosition();
                 allSongs.clear(); allSongs.addAll(songs);
                 if (!libraryReady) {

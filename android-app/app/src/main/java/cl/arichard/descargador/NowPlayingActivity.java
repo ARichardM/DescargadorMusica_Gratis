@@ -64,7 +64,7 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         setupClickListeners();
         cl.arichard.descargador.util.SafeTap.installButtons(nowPlayingRoot);
         cl.arichard.descargador.util.SafeTap.install(btnPlayPauseCircle);
-        setupSwipeDownToDismiss();
+        setupPlayerGestures();
         getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() { closeWithSlideDown(); }
         });
@@ -257,8 +257,13 @@ public class NowPlayingActivity extends AppCompatActivity implements PlayerManag
         });
     }
 
-    private void setupSwipeDownToDismiss() {
-        ((cl.arichard.descargador.util.PlayerDismissLayout) nowPlayingRoot).setDismissAction(this::closeWithSlideDown);
+    private void setupPlayerGestures() {
+        cl.arichard.descargador.util.PlayerDismissLayout gestures =
+                (cl.arichard.descargador.util.PlayerDismissLayout) nowPlayingRoot;
+        gestures.setDismissAction(this::closeWithSlideDown);
+        gestures.setTrackActions(
+                () -> PlayerManager.getInstance().playNext(),
+                () -> PlayerManager.getInstance().skipPrevious());
     }
 
     private void closeWithSlideDown() {

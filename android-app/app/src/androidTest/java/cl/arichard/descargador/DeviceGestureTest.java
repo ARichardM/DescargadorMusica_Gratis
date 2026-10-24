@@ -82,7 +82,7 @@ public class DeviceGestureTest {
         action(() -> { player.playNext(); }); waitFor(() -> main(() -> !player.isLoading()));
         action(() -> { if (player.isPlaying()) player.togglePlayPause(); });
         // Refresh discovery after recording the play.
-        page(false); view("chipSongs").click(); view("chipFilterAll").click(); page(true);
+        page(false); view("chipSongs").click(); page(true);
         Rect carousel = view("recentPlaysScroll").getVisibleBounds();
         for (int i = 0; i < 3; i++) swipe(carousel, true);
         assertTrue("Carousel must not change page", device.hasObject(By.res(pkg, "navTabSearch").selected(true)));
@@ -92,7 +92,6 @@ public class DeviceGestureTest {
         swipe(row.getVisibleBounds(), true);
         waitFor(() -> device.hasObject(By.res(pkg, "navTabLibrary").selected(true))); Thread.sleep(300);
         view("txtLibraryTitle");
-        swipe(view("scrollLibraryFilters").getVisibleBounds(), true); view("txtLibraryTitle");
         UiObject2 list = view("recyclerLibrary"); Rect bounds = list.getVisibleBounds();
         device.swipe(bounds.centerX(), bounds.top + bounds.height() * 3 / 4,
                 bounds.centerX() + 8, bounds.top + bounds.height() / 4, 30);
@@ -153,7 +152,7 @@ public class DeviceGestureTest {
     }
 
     @Test public void actionStripIgnoresAccidentalDrags() throws Exception {
-        page(false); view("chipSongs").click(); view("chipFilterAll").click();
+        page(false); view("chipSongs").click();
         int favorites = main(() -> cl.arichard.descargador.data.PlaylistManager.getInstance(context).getSongPaths("Favoritos").size());
         Rect button = view("btnFavorite").getVisibleBounds();
         device.swipe(button.centerX(), button.centerY(), button.centerX() + button.width() / 3, button.centerY(), 20);

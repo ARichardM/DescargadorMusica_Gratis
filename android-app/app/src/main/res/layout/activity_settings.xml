@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/bg_primary" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="20dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+            <ImageView android:id="@+id/btnSettingsBack" android:layout_width="40dp" android:layout_height="40dp"
+                android:padding="9dp" android:src="@drawable/ic_arrow_back" android:background="?attr/selectableItemBackgroundBorderless"/>
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="Configuración" android:textColor="@color/text_primary" android:textSize="25sp" android:textStyle="bold"/>
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp"
+            android:orientation="vertical" android:padding="18dp" android:background="@drawable/bg_card">
+            <TextView android:id="@+id/txtSettingsName" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textColor="@color/text_primary" android:textSize="17sp" android:textStyle="bold"/>
+            <TextView android:id="@+id/txtSettingsEmail" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" android:textColor="@color/text_secondary" android:textSize="14sp"/>
+        </LinearLayout>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="26dp"
+            android:text="DISPOSITIVOS CONECTADOS" android:textColor="@color/text_secondary" android:textSize="12sp" android:textStyle="bold"/>
+        <LinearLayout android:id="@+id/layoutConnectedDevices" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:orientation="vertical"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="26dp"
+            android:text="MÁS CONFIGURACIONES" android:textColor="@color/text_secondary" android:textSize="12sp" android:textStyle="bold"/>
+        <TextView android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp"
+            android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
+            android:text="Aquí agregaremos nuevas opciones próximamente" android:textColor="@color/text_secondary"
+            android:textSize="13sp" android:background="@drawable/bg_card"/>
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnSettingsLogout"
+            android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="32dp"
+            android:text="Cerrar sesión" android:textAllCaps="false" android:textSize="15sp"/>
+    </LinearLayout>
+</ScrollView>
